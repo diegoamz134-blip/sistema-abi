@@ -23,6 +23,9 @@ export interface Paciente {
   tiempo_tenencia?: string;
   dieta?: string;
   habitat?: string;
+  foto_url?: string;
+  fecha_nacimiento?: string;
+  peso?: number;
   created_at: string;
 }
 

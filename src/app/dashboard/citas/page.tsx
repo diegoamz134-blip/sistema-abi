@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar as CalendarIcon, Clock, Plus, Loader2, User, Stethoscope, AlertTriangle, CheckCircle2, FileText, UploadCloud, X, Trash2, Pencil, Phone, Home } from "lucide-react";
 import { insforge } from "@/lib/insforge";
@@ -13,6 +13,7 @@ import PetAutocomplete from "@/components/PetAutocomplete";
 import TimePickerInput from "@/components/TimePickerInput";
 import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
+import SearchInput from "@/components/SearchInput";
 import { Inbox, CalendarX } from "lucide-react";
 import useSWR, { mutate } from "swr";
 import { fetcher } from "@/lib/fetchers";
@@ -26,8 +27,18 @@ export default function CitasPage() {
   const [enviando, setEnviando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [paginaActual, setPaginaActual] = useState(1);
-  const [totalCitas, setTotalCitas] = useState(0);
-  const POR_PAGINA = 5;
+  const POR_PAGINA = 8;
+
+  // Filtrado por búsqueda
+  const citasFiltradas = useMemo(() => {
+    if (!busqueda.trim()) return citas;
+    const q = busqueda.toLowerCase();
+    return citas.filter(c =>
+      c.mascota?.toLowerCase().includes(q) ||
+      c.dueno?.toLowerCase().includes(q) ||
+      c.tipo?.toLowerCase().includes(q)
+    );
+  }, [citas, busqueda]);
 
   const [mostrarModalForm, setMostrarModalForm] = useState(false);
   const [editandoId, setEditandoId] = useState<string | null>(null);
@@ -224,15 +235,24 @@ export default function CitasPage() {
     setEditandoId(null); setMascota(""); setDueno(""); setTelefono(""); setDireccion(""); setTipo(""); setNotas(""); setEstadoCita("Pendiente");
   };
 
-  const totalPaginas = Math.ceil(totalCitas / POR_PAGINA);
   const hoyStr = new Date().toISOString().split('T')[0];
   const mananaDate = new Date(); mananaDate.setDate(mananaDate.getDate() + 1);
   const mananaStr = mananaDate.toISOString().split('T')[0];
 
-  const citasHoy = citas.filter(c => c.fecha === hoyStr);
-  const citasManana = citas.filter(c => c.fecha === mananaStr);
-  const citasProximas = citas.filter(c => c.fecha > mananaStr);
-  const citasPasadas = citas.filter(c => c.fecha < hoyStr);
+  // Agrupar por fecha usando las citas filtradas
+  const citasHoy      = citasFiltradas.filter(c => c.fecha === hoyStr);
+  const citasManana   = citasFiltradas.filter(c => c.fecha === mananaStr);
+  const citasProximas = citasFiltradas.filter(c => c.fecha > mananaStr);
+  const todasPasadas  = citasFiltradas.filter(c => c.fecha < hoyStr);
+  const hayResultados = citasFiltradas.length > 0;
+
+  // Paginación aplicada solo al histórico (que puede ser muy largo)
+  const totalPaginas  = Math.ceil(todasPasadas.length / POR_PAGINA);
+  const citasPasadas  = todasPasadas.slice(
+    (paginaActual - 1) * POR_PAGINA,
+    paginaActual * POR_PAGINA
+  );
+  const totalHistorico = todasPasadas.length;
 
   const CitaCard = ({ cita }: { cita: Cita }) => {
     const isLocked = cita.estado === 'Completada' || cita.estado === 'Cancelada';
@@ -296,6 +316,11 @@ export default function CitasPage() {
             <p className="text-[#a0a0b2] font-light mt-2 text-[15px]">Administra y visualiza el calendario completo de pacientes.</p>
           </div>
           <div className="flex flex-col md:flex-row items-center gap-4 w-full lg:w-auto">
+             <SearchInput
+               value={busqueda}
+               onChange={(v) => { setBusqueda(v); setPaginaActual(1); }}
+               placeholder="Buscar por mascota, dueño o motivo..."
+             />
              <button onClick={() => { cancelarEdicion(); setMostrarModalForm(true); }} className="w-full md:w-auto whitespace-nowrap bg-gradient-to-r from-[#8DAA68] to-[#6b844b] text-white px-8 h-[52px] rounded-full font-medium text-[15px] shadow-sm hover:scale-[1.02] flex items-center justify-center gap-2"><Plus className="w-5 h-5" /> Agendar Turno</button>
           </div>
         </div>
@@ -310,7 +335,13 @@ export default function CitasPage() {
           ) : citas.length === 0 ? (
             <EmptyState 
               title="No hay turnos registrados" 
-              description="Parece que la agenda está vacía para los criterios actuales. ¡Agrega un nuevo turno para comenzar!" 
+              description="Parece que la agenda está vacía. ¡Agrega un nuevo turno para comenzar!" 
+              icon={<CalendarX className="w-12 h-12 text-[#8DAA68]/20" />}
+            />
+          ) : !hayResultados ? (
+            <EmptyState
+              title="Sin resultados"
+              description={`No se encontraron citas para "${busqueda}". Prueba con otro término.`}
               icon={<CalendarX className="w-12 h-12 text-[#8DAA68]/20" />}
             />
           ) : (
@@ -319,10 +350,13 @@ export default function CitasPage() {
                 {citasHoy.length > 0 && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4"><h3 className="text-[14px] uppercase tracking-widest font-bold text-[#8DAA68] border-b border-[#eef2e8] pb-3 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[#8DAA68] animate-pulse"></span> Turnos para Hoy</h3><div className="flex flex-col gap-4">{citasHoy.map(c => <CitaCard key={c.id} cita={c} />)}</div></motion.div>)}
                 {citasManana.length > 0 && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4"><h3 className="text-[14px] uppercase tracking-widest font-bold text-[#3b3a62]/60 border-b border-slate-200 pb-3">Para Mañana</h3><div className="flex flex-col gap-4">{citasManana.map(c => <CitaCard key={c.id} cita={c} />)}</div></motion.div>)}
                 {citasProximas.length > 0 && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4"><h3 className="text-[14px] uppercase tracking-widest font-bold text-[#3b3a62]/60 border-b border-slate-200 pb-3">Próximos Días</h3><div className="flex flex-col gap-4">{citasProximas.map(c => <CitaCard key={c.id} cita={c} />)}</div></motion.div>)}
-                {citasPasadas.length > 0 && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 opacity-70"><h3 className="text-[14px] uppercase tracking-widest font-bold text-slate-400 border-b border-slate-200 pb-3">Histórico Anterior</h3><div className="flex flex-col gap-4">{citasPasadas.map(c => <CitaCard key={c.id} cita={c} />)}</div></motion.div>)}
+                {citasPasadas.length > 0 && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 opacity-70"><h3 className="text-[14px] uppercase tracking-widest font-bold text-slate-400 border-b border-slate-200 pb-3 flex items-center justify-between"><span>Historial Anterior</span><span className="text-[12px] font-medium text-slate-300 normal-case tracking-normal">{totalHistorico} registros</span></h3><div className="flex flex-col gap-4">{citasPasadas.map(c => <CitaCard key={c.id} cita={c} />)}</div></motion.div>)}
               </AnimatePresence>
               
-              <Pagination paginaActual={paginaActual} totalPaginas={totalPaginas} onPageChange={setPaginaActual} />
+              {/* Paginación del histórico — funcional */}
+              {totalPaginas > 1 && (
+                <Pagination paginaActual={paginaActual} totalPaginas={totalPaginas} onPageChange={setPaginaActual} />
+              )}
             </div>
           )}
         </div>

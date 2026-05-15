@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useState, useEffect, useRef } from "react";
-import { PawPrint, Users, Calendar, Clock, LogOut, Menu, X, Camera, Package } from "lucide-react";
+import { PawPrint, Users, Calendar, Clock, LogOut, Menu, X, Camera, Package, BarChart3, BookOpen } from "lucide-react";
 import { Toaster } from "sonner";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -158,10 +158,18 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <MenuLink href="/dashboard/citas"      icon={<Clock     size={18} strokeWidth={2} />} text="Lista de Citas" />
           <MenuLink href="/dashboard/pacientes"  icon={<Users     size={18} strokeWidth={2} />} text="Pacientes" />
           <MenuLink href="/dashboard/inventario" icon={<Package   size={18} strokeWidth={2} />} text="Inventario" />
+          <MenuLink href="/dashboard/reportes"   icon={<BarChart3 size={18} strokeWidth={2} />} text="Reportes" />
         </nav>
 
-        {/* ── Cerrar sesión ── */}
-        <div className="px-4 pb-6 pt-4">
+        {/* ── Manual + Cerrar sesión ── */}
+        <div className="px-4 pb-6 pt-4 space-y-1">
+          <Link
+            href="/dashboard/manual"
+            className="flex items-center gap-3 text-[#A0AAB2] text-[14px] font-medium px-4 py-3 rounded-xl hover:bg-[#f4f7f0] hover:text-[#8DAA68] transition-colors w-full group"
+          >
+            <BookOpen size={18} strokeWidth={2} className="group-hover:text-[#8DAA68] transition-colors shrink-0" />
+            <span>Manual de Uso</span>
+          </Link>
           <button
             onClick={() => signOut()}
             className="flex items-center gap-3 text-[#A0AAB2] text-[14px] font-medium px-4 py-3 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors w-full group cursor-pointer"

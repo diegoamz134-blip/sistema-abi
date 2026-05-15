@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Users, Plus, Loader2, Search, Trash2, Pencil, Calendar, 
   Phone, User as UserIcon, Info, ChevronRight, 
-  Stethoscope, Activity, Dna, Apple, Home, CheckCircle2, Clock, FileText, PawPrint, SearchX, AlertTriangle
+  Stethoscope, Activity, Dna, Apple, Home, CheckCircle2, Clock, FileText, PawPrint, SearchX, AlertTriangle, Camera
 } from "lucide-react";
 import { insforge } from "@/lib/insforge";
 import { toast } from "sonner";
@@ -57,6 +57,14 @@ export default function PacientesPage() {
   const [dieta, setDieta] = useState("");
   const [habitat, setHabitat] = useState("");
 
+  // Foto de mascota
+  const [fotoUrl, setFotoUrl] = useState("");
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+
+  // Fecha de nacimiento y peso
+  const [fechaNacimiento, setFechaNacimiento] = useState("");
+  const [peso, setPeso] = useState<number | "">("");
+
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
@@ -82,6 +90,54 @@ export default function PacientesPage() {
     }
     setCargando(false);
   }
+
+  // Comprimir imagen antes de subir
+  const comprimirImagen = (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      if (!file.type.startsWith('image/')) return resolve(file);
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX = 400;
+          const scale = MAX / Math.max(img.width, img.height);
+          canvas.width = img.width > MAX ? img.width * scale : img.width;
+          canvas.height = img.height > MAX ? img.height * scale : img.height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+          canvas.toBlob((blob) => {
+            if (blob) resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+            else resolve(file);
+          }, 'image/jpeg', 0.7);
+        };
+      };
+    });
+  };
+
+  const handleFotoMascota = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSubiendoFoto(true);
+    // Preview inmediato
+    const reader = new FileReader();
+    reader.onload = (ev) => { if (ev.target?.result) setFotoUrl(ev.target.result as string); };
+    reader.readAsDataURL(file);
+    try {
+      const compressed = await comprimirImagen(file);
+      const fileName = `mascota_${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
+      const { data, error } = await insforge.storage.from('historial').upload(fileName, compressed);
+      if (error) throw error;
+      const publicUrl = insforge.storage.from('historial').getPublicUrl(fileName) as string;
+      setFotoUrl(publicUrl);
+    } catch (err) {
+      console.error('Error subiendo foto de mascota:', err);
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
 
   const cargarHistorial = async (p: Paciente) => {
     setVerHistorialPaciente(p);
@@ -148,7 +204,10 @@ export default function PacientesPage() {
       nombre_cientifico: nombreCientifico,
       tiempo_tenencia: tiempoTenencia,
       dieta,
-      habitat
+      habitat,
+      ...(fotoUrl ? { foto_url: fotoUrl } : {}),
+      ...(fechaNacimiento ? { fecha_nacimiento: fechaNacimiento } : {}),
+      ...(peso !== "" ? { peso: Number(peso) } : {}),
     };
 
     const pacienteEditando = !!editandoId;
@@ -202,6 +261,9 @@ export default function PacientesPage() {
     setTiempoTenencia(p.tiempo_tenencia || "");
     setDieta(p.dieta || "");
     setHabitat(p.habitat || "");
+    setFotoUrl(p.foto_url || "");
+    setFechaNacimiento(p.fecha_nacimiento || "");
+    setPeso(p.peso ?? "");
     setMostrarModalForm(true);
   };
 
@@ -209,6 +271,8 @@ export default function PacientesPage() {
     setEditandoId(null);
     setNombre(""); setEspecie("Perro"); setRaza(""); setDueno(""); setTelefono(""); setDireccion(""); setHistoria("");
     setNombreCientifico(""); setTiempoTenencia(""); setDieta(""); setHabitat("");
+    setFotoUrl("");
+    setFechaNacimiento(""); setPeso("");
   };
 
   const totalPaginas = Math.ceil(totalPacientes / POR_PAGINA);
@@ -248,12 +312,31 @@ export default function PacientesPage() {
                 </div>
                 
                 <div className="flex items-center gap-4 mb-6">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-300 group-hover:bg-[#f4f7f0] group-hover:text-[#8DAA68] transition-all">
-                       <PawPrint className="w-6 h-6" />
+                    {/* Avatar con foto o inicial */}
+                    <div className="relative shrink-0">
+                      <div className="w-14 h-14 rounded-2xl overflow-hidden bg-slate-50 flex items-center justify-center text-slate-300 group-hover:ring-2 group-hover:ring-[#8DAA68]/30 transition-all">
+                        {p.foto_url ? (
+                          <img src={p.foto_url} alt={p.nombre} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-2xl font-bold text-[#8DAA68]/40">{p.nombre[0]?.toUpperCase()}</span>
+                        )}
+                      </div>
                     </div>
                    <div className="flex-1 min-w-0">
                       <h4 className="text-[#3b3a62] font-medium text-lg truncate">{p.nombre}</h4>
-                      <p className="text-[12px] text-[#a0a0b2] truncate">Hist: {p.numero_historial}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[12px] text-[#a0a0b2] truncate">Hist: {p.numero_historial}</p>
+                        {p.fecha_nacimiento && (
+                          <span className="text-[11px] bg-[#f4f7f0] text-[#8DAA68] px-2 py-0.5 rounded-full font-medium">
+                            {Math.floor((Date.now() - new Date(p.fecha_nacimiento).getTime()) / (1000*60*60*24*365))} años
+                          </span>
+                        )}
+                        {p.peso && (
+                          <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
+                            {p.peso} kg
+                          </span>
+                        )}
+                      </div>
                    </div>
                 </div>
 
@@ -351,6 +434,64 @@ export default function PacientesPage() {
                  <input type="text" value={direccion} onChange={(e) => setDireccion(e.target.value)} className="w-full h-11 bg-slate-50 rounded-xl px-10 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none" placeholder="Av. Siempre Viva 123" />
                  <Home className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8DAA68]/40" />
                </div>
+            </div>
+
+            {/* Fecha Nacimiento + Peso */}
+            <div className="col-span-1 md:col-span-2 grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Fecha de Nacimiento</label>
+                <input
+                  type="date"
+                  value={fechaNacimiento}
+                  onChange={(e) => setFechaNacimiento(e.target.value)}
+                  className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Peso Actual (kg)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={peso}
+                  onChange={(e) => setPeso(e.target.value === "" ? "" : Number(e.target.value))}
+                  className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none"
+                  placeholder="Ej: 4.5"
+                />
+              </div>
+            </div>
+
+            {/* Foto de la Mascota */}
+            <div className="col-span-1 md:col-span-2">
+              <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1 flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5" /> Foto de la Mascota (Opcional)
+              </label>
+              <div className="flex items-center gap-4">
+                {/* Preview */}
+                <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                  {subiendoFoto ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-[#8DAA68]" />
+                  ) : fotoUrl ? (
+                    <img src={fotoUrl} alt="Foto mascota" className="w-full h-full object-cover" />
+                  ) : (
+                    <PawPrint className="w-6 h-6 text-slate-300" />
+                  )}
+                </div>
+                {/* Input */}
+                <label className="flex-1 cursor-pointer">
+                  <div className="h-11 bg-slate-50 border border-dashed border-slate-200 rounded-xl flex items-center justify-center gap-2 text-[#8DAA68] text-sm font-medium hover:bg-[#f4f7f0] hover:border-[#8DAA68]/40 transition-colors">
+                    <Camera className="w-4 h-4" />
+                    {fotoUrl ? 'Cambiar foto' : 'Subir foto'}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleFotoMascota}
+                    className="hidden"
+                    disabled={subiendoFoto}
+                  />
+                </label>
+              </div>
             </div>
           </div>
 

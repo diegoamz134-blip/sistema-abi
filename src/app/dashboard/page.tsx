@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, User, Clock, CheckCircle2, Plus, Check, Pencil, Trash2, Star, Loader2 } from "lucide-react";
+import { Calendar, User, Clock, CheckCircle2, Plus, Check, Pencil, Trash2, Star, Loader2, AlertTriangle, Package } from "lucide-react";
 import { useState, useMemo } from "react";
 import useSWR, { mutate } from "swr";
 import { fetcher } from "@/lib/fetchers";
@@ -9,6 +9,7 @@ import { insforge } from "@/lib/insforge";
 import StatCard from "@/components/StatCard";
 import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
+import Link from "next/link";
 import {
   AreaChart,
   Area,
@@ -18,40 +19,71 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import type { Cita, Recordatorio, AppointmentItemProps } from "@/types";
+import type { Cita, Recordatorio, AppointmentItemProps, ArticuloInventario } from "@/types";
 
 const HOY = new Date().toISOString().split('T')[0];
 const CITAS_KEY = `citas:{"eq":["fecha","${HOY}"],"order":["hora",{"ascending":true}]}`;
 const PACIENTES_KEY = 'pacientes:{"select":"id","count":"exact"}';
 const RECORDATORIOS_KEY = 'recordatorios:{"order":["id",{"ascending":false}]}';
 const CONSULTAS_COMPLETADAS_KEY = 'citas:{"eq":["estado","Completada"],"select":"id","count":"exact"}';
+const INVENTARIO_KEY = 'inventario:{"order":["nombre",{"ascending":true}]}';
 
-// Datos de ejemplo para el gráfico de analíticas
-const dataGrafico = [
-  { name: "Lun", citas: 4, ingresos: 400 },
-  { name: "Mar", citas: 3, ingresos: 300 },
-  { name: "Mié", citas: 5, ingresos: 500 },
-  { name: "Jue", citas: 2, ingresos: 200 },
-  { name: "Vie", citas: 6, ingresos: 600 },
-  { name: "Sáb", citas: 7, ingresos: 700 },
-  { name: "Dom", citas: 1, ingresos: 100 },
-];
+// Genera los últimos 7 días como labels y fechas ISO
+function getUltimos7Dias() {
+  const dias: { label: string; fecha: string }[] = [];
+  const hoy = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(hoy);
+    d.setDate(hoy.getDate() - i);
+    const label = d.toLocaleDateString('es-PE', { weekday: 'short' });
+    const fecha = d.toISOString().split('T')[0];
+    dias.push({ label: label.charAt(0).toUpperCase() + label.slice(1, 3), fecha });
+  }
+  return dias;
+}
+
+const DIAS_SEMANA = getUltimos7Dias();
+const FECHA_HACE_7_DIAS = DIAS_SEMANA[0].fecha;
+const CITAS_SEMANA_KEY = `citas:{"gte":["fecha","${FECHA_HACE_7_DIAS}"],"order":["fecha",{"ascending":true}]}`;
 
 export default function Dashboard() {
   const { data: citasData, isLoading: citasLoading } = useSWR(CITAS_KEY, fetcher);
   const { data: pacientesData, isLoading: pacientesLoading } = useSWR(PACIENTES_KEY, fetcher);
   const { data: recordatoriosData, isLoading: recordatoriosLoading } = useSWR(RECORDATORIOS_KEY, fetcher);
   const { data: consultasData, isLoading: consultasLoading } = useSWR(CONSULTAS_COMPLETADAS_KEY, fetcher);
+  const { data: citasSemanaData, isLoading: citasSemanaLoading } = useSWR(CITAS_SEMANA_KEY, fetcher);
+  const { data: inventarioData } = useSWR(INVENTARIO_KEY, fetcher);
 
   const citas = (citasData || []) as Cita[];
   const recordatorios = (recordatoriosData || []) as Recordatorio[];
-  
+  const citasSemana = (citasSemanaData || []) as Cita[];
+  const articulos = (inventarioData || []) as ArticuloInventario[];
+
+  // Calcular productos con stock crítico
+  const stockCritico = useMemo(() =>
+    articulos.filter(a => a.cantidad <= a.stock_minimo),
+    [articulos]
+  );
+
+  // Construir datos reales del gráfico agrupando citas por día
+  const dataGrafico = useMemo(() => {
+    return DIAS_SEMANA.map(({ label, fecha }) => {
+      const citasDelDia = citasSemana.filter(c => c.fecha === fecha);
+      return {
+        name: label,
+        citas: citasDelDia.length,
+        completadas: citasDelDia.filter(c => c.estado === 'Completada').length,
+      };
+    });
+  }, [citasSemana]);
+
   const stats = useMemo(() => ({
     pacientes: pacientesData?.length || 0,
     consultas: consultasData?.length || 0
   }), [pacientesData, consultasData]);
 
   const cargando = citasLoading || pacientesLoading || recordatoriosLoading || consultasLoading;
+  const graficoCargando = citasSemanaLoading;
 
   const [nuevoTexto, setNuevoTexto] = useState("");
   const [creando, setCreando] = useState(false);
@@ -104,6 +136,42 @@ export default function Dashboard() {
       transition={{ duration: 0.8, ease: "easeOut" }}
       className="max-w-[1400px] mx-auto space-y-8"
     >
+      {/* Alerta de Stock Crítico */}
+      <AnimatePresence>
+        {stockCritico.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: 'auto' }}
+            exit={{ opacity: 0, y: -10, height: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <Link href="/dashboard/inventario">
+              <div className="flex items-center gap-4 bg-rose-50 border border-rose-200 rounded-2xl px-6 py-4 cursor-pointer hover:bg-rose-100/60 transition-colors group">
+                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-rose-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-rose-700 font-semibold text-sm">
+                    ¡Stock crítico detectado!
+                  </p>
+                  <p className="text-rose-500 text-xs mt-0.5">
+                    {stockCritico.length} {stockCritico.length === 1 ? 'producto tiene' : 'productos tienen'} stock igual o por debajo del mínimo:{' '}
+                    <span className="font-medium">
+                      {stockCritico.slice(0, 3).map(a => a.nombre).join(', ')}
+                      {stockCritico.length > 3 ? ` y ${stockCritico.length - 3} más` : ''}
+                    </span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-rose-500 text-xs font-semibold shrink-0 group-hover:gap-3 transition-all">
+                  <Package className="w-4 h-4" />
+                  Ver Inventario →
+                </div>
+              </div>
+            </Link>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Tarjetas Superiores */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard icon={<User strokeWidth={1.5} />} title="Pacientes" value={cargando ? "-" : stats.pacientes.toString()} trend="Total registrados" color="green" />
@@ -111,33 +179,58 @@ export default function Dashboard() {
         <StatCard icon={<CheckCircle2 strokeWidth={1.5} />} title="Consultas" value={cargando ? "-" : stats.consultas.toString()} trend="Finalizadas" color="teal" />
       </div>
 
-      {/* Gráfico Analítico (Nuevo) */}
+      {/* Gráfico Analítico — Datos Reales */}
       <div className="bg-white rounded-[1.5rem] p-6 md:p-8 shadow-[0_4px_24px_rgba(0,0,0,0.02)] border border-[#f0ece1]">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-[#2D3339] font-medium text-lg tracking-tight">Actividad Semanal</h3>
-            <p className="text-[#A0AAB2] text-sm mt-1">Tendencia de citas atendidas en los últimos 7 días</p>
+            <p className="text-[#A0AAB2] text-sm mt-1">Citas de los últimos 7 días — datos en tiempo real</p>
           </div>
+          {graficoCargando && <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />}
         </div>
         <div className="h-[250px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={dataGrafico} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorCitas" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#A0AAB2', fontSize: 12}} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{fill: '#A0AAB2', fontSize: 12}} />
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0ece1" />
-              <Tooltip 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
-                itemStyle={{ color: '#2D3339', fontWeight: 500 }}
-              />
-              <Area type="monotone" dataKey="citas" stroke="var(--color-primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorCitas)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          {graficoCargando ? (
+            <Skeleton className="h-full w-full rounded-xl" />
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={dataGrafico} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorCitas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorCompletadas" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#A0AAB2', fontSize: 12}} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{fill: '#A0AAB2', fontSize: 12}} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0ece1" />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.08)' }}
+                  itemStyle={{ color: '#2D3339', fontWeight: 500 }}
+                  formatter={(value, name) => [
+                    value,
+                    name === 'citas' ? 'Total citas' : 'Completadas'
+                  ]}
+                />
+                <Area type="monotone" dataKey="citas" stroke="var(--color-primary)" strokeWidth={3} fillOpacity={1} fill="url(#colorCitas)" name="citas" />
+                <Area type="monotone" dataKey="completadas" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorCompletadas)" strokeDasharray="4 2" name="completadas" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+        {/* Leyenda */}
+        <div className="flex items-center gap-6 mt-4 ml-2">
+          <div className="flex items-center gap-2">
+            <span className="w-8 h-0.5 bg-[var(--color-primary)] rounded-full inline-block"></span>
+            <span className="text-xs text-[#A0AAB2]">Total citas</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-8 border-t-2 border-dashed border-emerald-400 inline-block"></span>
+            <span className="text-xs text-[#A0AAB2]">Completadas</span>
+          </div>
         </div>
       </div>
 
@@ -151,9 +244,9 @@ export default function Dashboard() {
               Agenda de Hoy
               {cargando && <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)] ml-2" />}
             </h3>
-            <button className="text-[var(--color-primary)] text-sm font-medium hover:bg-[var(--color-primary-light)] px-4 py-2 rounded-lg transition-colors">
+            <Link href="/dashboard/calendario" className="text-[var(--color-primary)] text-sm font-medium hover:bg-[var(--color-primary-light)] px-4 py-2 rounded-lg transition-colors">
               Ver calendario completo
-            </button>
+            </Link>
           </div>
           
           <div className="space-y-3 relative z-10 min-h-[150px]">
@@ -215,27 +308,27 @@ export default function Dashboard() {
                <AnimatePresence>
                   {recordatorios.map(r => (
                      <motion.div layout key={r.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} className={`relative bg-white rounded-xl p-4 border border-[#f0ece1] transition-all flex items-start gap-3 group overflow-hidden shadow-sm ${r.completado ? 'opacity-60 bg-slate-50' : 'hover:border-[var(--color-primary-light)] hover:shadow-md'}`}>
-                       <button onClick={() => completarRecordatorio(r.id, r.completado)} className={`w-5 h-5 rounded-full mt-0.5 border flex items-center justify-center shrink-0 transition-colors z-10 ${r.completado ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white' : 'border-[#d0d5dc] hover:border-[var(--color-primary)] bg-white text-transparent'}`}>
-                          <Check className="w-3 h-3" strokeWidth={3} />
-                       </button>
-                       {editandoRecordatorioId === r.id ? (
-                          <form onSubmit={(e) => guardarEdicionRecordatorio(e, r.id)} className="flex-1 -mt-1.5 -ml-1 z-10 relative">
-                             <input type="text" autoFocus value={textoEditado} onChange={(e) => setTextoEditado(e.target.value)} onBlur={(e) => guardarEdicionRecordatorio(e, r.id)} className="w-full bg-slate-50 rounded-lg p-2 border border-[var(--color-primary)] text-[#2D3339] focus:outline-none text-sm" />
-                          </form>
-                       ) : (
-                          <p className={`text-sm text-[#2D3339] leading-relaxed flex-1 pr-12 ${r.completado ? 'line-through text-[#A0AAB2]' : ''}`}>{r.texto}</p>
-                       )}
-                       
-                       {!r.completado && editandoRecordatorioId !== r.id && (
-                          <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 z-20">
-                             <button onClick={() => iniciarEdicionRecordatorio(r)} className="w-7 h-7 rounded-md flex items-center justify-center bg-slate-50 text-[#8591A0] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary)] transition-colors" title="Editar">
-                                <Pencil className="w-3 h-3" />
-                             </button>
-                             <button onClick={() => eliminarRecordatorio(r.id)} className="w-7 h-7 rounded-md flex items-center justify-center bg-slate-50 text-[#8591A0] hover:bg-red-50 hover:text-red-500 transition-colors" title="Eliminar">
-                                <Trash2 className="w-3 h-3" />
-                             </button>
-                          </div>
-                       )}
+                        <button onClick={() => completarRecordatorio(r.id, r.completado)} className={`w-5 h-5 rounded-full mt-0.5 border flex items-center justify-center shrink-0 transition-colors z-10 ${r.completado ? 'bg-[var(--color-primary)] border-[var(--color-primary)] text-white' : 'border-[#d0d5dc] hover:border-[var(--color-primary)] bg-white text-transparent'}`}>
+                           <Check className="w-3 h-3" strokeWidth={3} />
+                        </button>
+                        {editandoRecordatorioId === r.id ? (
+                           <form onSubmit={(e) => guardarEdicionRecordatorio(e, r.id)} className="flex-1 -mt-1.5 -ml-1 z-10 relative">
+                              <input type="text" autoFocus value={textoEditado} onChange={(e) => setTextoEditado(e.target.value)} onBlur={(e) => guardarEdicionRecordatorio(e, r.id)} className="w-full bg-slate-50 rounded-lg p-2 border border-[var(--color-primary)] text-[#2D3339] focus:outline-none text-sm" />
+                           </form>
+                        ) : (
+                           <p className={`text-sm text-[#2D3339] leading-relaxed flex-1 pr-12 ${r.completado ? 'line-through text-[#A0AAB2]' : ''}`}>{r.texto}</p>
+                        )}
+                        
+                        {!r.completado && editandoRecordatorioId !== r.id && (
+                           <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 z-20">
+                              <button onClick={() => iniciarEdicionRecordatorio(r)} className="w-7 h-7 rounded-md flex items-center justify-center bg-slate-50 text-[#8591A0] hover:bg-[var(--color-primary-light)] hover:text-[var(--color-primary)] transition-colors" title="Editar">
+                                 <Pencil className="w-3 h-3" />
+                              </button>
+                              <button onClick={() => eliminarRecordatorio(r.id)} className="w-7 h-7 rounded-md flex items-center justify-center bg-slate-50 text-[#8591A0] hover:bg-red-50 hover:text-red-500 transition-colors" title="Eliminar">
+                                 <Trash2 className="w-3 h-3" />
+                              </button>
+                           </div>
+                        )}
                      </motion.div>
                   ))}
                </AnimatePresence>
