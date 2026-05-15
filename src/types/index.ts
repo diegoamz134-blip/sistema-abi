@@ -26,6 +26,41 @@ export interface Paciente {
   created_at: string;
 }
 
+export interface HistorialClinico {
+  id: string;
+  paciente_id: string;
+  fecha: string;
+  tipo: string;
+  titulo: string;
+  descripcion?: string;
+  archivos?: ArchivoAdjunto[];
+  veterinario?: string;
+  created_at: string;
+}
+
+export interface Vacuna {
+  id: string;
+  paciente_id: string;
+  tipo: string;
+  nombre: string;
+  fecha_aplicacion: string;
+  proxima_dosis?: string;
+  aplicado_por?: string;
+  notas?: string;
+  created_at: string;
+}
+
+export interface ArticuloInventario {
+  id: string;
+  nombre: string;
+  categoria: string;
+  cantidad: number;
+  unidad_medida?: string;
+  precio_venta?: number;
+  stock_minimo: number;
+  created_at: string;
+}
+
 export interface Cita {
   id: string;
   mascota: string;

@@ -1,7 +1,7 @@
 "use client";
 
 import { ReactNode, useState, useEffect, useRef } from "react";
-import { PawPrint, Users, Calendar, Clock, LogOut, Menu, X, Camera } from "lucide-react";
+import { PawPrint, Users, Calendar, Clock, LogOut, Menu, X, Camera, Package } from "lucide-react";
 import { Toaster } from "sonner";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -112,11 +112,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[#f0f2f0] flex font-sans relative">
+    <div className="min-h-screen bg-[var(--background)] flex font-sans relative text-[var(--foreground)]">
       {/* Overlay móvil */}
       {menuAbierto && (
         <div
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[150] md:hidden"
+          className="fixed inset-0 bg-black/10 backdrop-blur-sm z-[150] md:hidden"
           onClick={() => setMenuAbierto(false)}
         />
       )}
@@ -124,80 +124,74 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {/* ─── SIDEBAR FLOTANTE ─── */}
       <aside className={`
         fixed z-[200] h-[calc(100vh-2rem)] my-4 ml-4
-        w-[230px] flex flex-col
-        bg-gradient-to-b from-[#8DAA68] to-[#7a9459]
-        rounded-2xl shadow-[0_8px_40px_rgba(141,170,104,0.35)]
+        w-[240px] flex flex-col
+        bg-white
+        rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.04)]
+        border border-[#f0ece1]
         transition-transform duration-300 ease-in-out
         ${menuAbierto ? 'translate-x-0' : '-translate-x-[110%] md:translate-x-0'}
       `}>
         {/* Botón cerrar (móvil) */}
-        <button onClick={() => setMenuAbierto(false)} className="absolute top-3 right-3 md:hidden text-white/60 hover:bg-white/10 p-1.5 rounded-lg">
+        <button onClick={() => setMenuAbierto(false)} className="absolute top-3 right-3 md:hidden text-slate-400 hover:bg-slate-100 p-1.5 rounded-lg">
           <X size={18} />
         </button>
 
-        {/* ── Perfil ── */}
-        <div className="pt-8 pb-5 px-5 flex flex-col items-center border-b border-white/10">
-          <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-            <div className={`w-16 h-16 rounded-xl overflow-hidden flex items-center justify-center shadow-[0_6px_20px_rgba(252,133,95,0.45)] ${fotoPerfil ? '' : 'bg-gradient-to-br from-[#fc855f] to-[#f06035]'}`}>
-              {fotoPerfil
-                ? <img src={fotoPerfil} alt="Perfil" className="w-full h-full object-cover" />
-                : <span className="text-white font-semibold text-[20px] leading-none tracking-wide">{iniciales}</span>
-              }
-            </div>
-            {/* Hover cámara */}
-            <div className="absolute inset-0 rounded-xl bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              {subiendoFoto
-                ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                : <Camera size={16} className="text-white" />
-              }
-            </div>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoChange} />
+        {/* ── Perfil / Logo ── */}
+        <div className="pt-10 pb-6 px-5 flex flex-col items-center border-b border-[#f0ece1]/50">
+          <div className="w-32 mb-2">
+            <img src="/icons/logo-transparent.png" alt="Logo Veterinaria" className="w-full h-auto object-contain" />
           </div>
 
-          <h2 className="text-white font-semibold text-[14px] mt-3 leading-tight text-center">{nombreDra}</h2>
-          <span className="text-[10px] text-white/40 font-light uppercase tracking-widest mt-0.5">Panel Administrativo</span>
+          <div className="flex items-center gap-2 mt-2 bg-[#F4F7F0] px-3 py-1.5 rounded-full border border-[#E2E8D8] shadow-sm">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8DAA68] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#8DAA68]"></span>
+            </span>
+            <span className="text-[11px] text-[#2D3339] font-bold uppercase tracking-[0.1em]">Administrador</span>
+          </div>
         </div>
 
         {/* ── Navegación ── */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          <MenuLink href="/dashboard"            icon={<PawPrint size={17} strokeWidth={1.75} />} text="Dashboard" />
-          <MenuLink href="/dashboard/calendario" icon={<Calendar  size={17} strokeWidth={1.75} />} text="Calendario" />
-          <MenuLink href="/dashboard/citas"      icon={<Clock     size={17} strokeWidth={1.75} />} text="Lista de Citas" />
-          <MenuLink href="/dashboard/pacientes"  icon={<Users     size={17} strokeWidth={1.75} />} text="Pacientes" />
+        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+          <MenuLink href="/dashboard"            icon={<PawPrint size={18} strokeWidth={2} />} text="Dashboard" />
+          <MenuLink href="/dashboard/calendario" icon={<Calendar  size={18} strokeWidth={2} />} text="Calendario" />
+          <MenuLink href="/dashboard/citas"      icon={<Clock     size={18} strokeWidth={2} />} text="Lista de Citas" />
+          <MenuLink href="/dashboard/pacientes"  icon={<Users     size={18} strokeWidth={2} />} text="Pacientes" />
+          <MenuLink href="/dashboard/inventario" icon={<Package   size={18} strokeWidth={2} />} text="Inventario" />
         </nav>
 
         {/* ── Cerrar sesión ── */}
-        <div className="px-3 pb-5 pt-2 border-t border-white/10">
+        <div className="px-4 pb-6 pt-4">
           <button
             onClick={() => signOut()}
-            className="flex items-center gap-3 text-white/40 text-[13px] px-3 py-2.5 rounded-xl hover:bg-white/10 hover:text-white/80 transition-colors w-full group cursor-pointer"
+            className="flex items-center gap-3 text-[#A0AAB2] text-[14px] font-medium px-4 py-3 rounded-xl hover:bg-red-50 hover:text-red-500 transition-colors w-full group cursor-pointer"
           >
-            <LogOut size={16} strokeWidth={1.75} className="group-hover:text-[#fc855f] transition-colors shrink-0" />
+            <LogOut size={18} strokeWidth={2} className="group-hover:text-red-400 transition-colors shrink-0" />
             <span>Cerrar Sesión</span>
           </button>
         </div>
       </aside>
 
       {/* ─── CONTENIDO PRINCIPAL ─── */}
-      <div className="flex-1 flex flex-col min-h-screen md:pl-[262px]">
+      <div className="flex-1 flex flex-col min-h-screen md:pl-[272px]">
 
         {/* Header flotante */}
         <div className="sticky top-0 z-20 px-4 pt-4 pb-2 pointer-events-none">
-          <header className="pointer-events-auto h-[62px] bg-white rounded-2xl flex items-center px-5 shadow-[0_4px_24px_rgba(0,0,0,0.08)] border border-slate-100">
+          <header className="pointer-events-auto h-[68px] bg-white/80 backdrop-blur-md rounded-2xl flex items-center px-6 shadow-[0_2px_20px_rgba(0,0,0,0.02)] border border-white/50">
             <button
               onClick={() => setMenuAbierto(true)}
-              className="mr-4 text-[#3b3a62] p-1.5 bg-slate-50 rounded-lg border border-slate-100 md:hidden hover:bg-slate-100 transition-colors"
+              className="mr-4 text-[#2D3339] p-2 bg-slate-50 rounded-xl border border-slate-100 md:hidden hover:bg-slate-100 transition-colors"
             >
               <Menu className="w-5 h-5" />
             </button>
 
             <div>
-              <h1 className="text-[17px] md:text-[19px] font-light text-[#3b3a62] tracking-wide">Centro de Control</h1>
-              <p className="text-[10px] text-[#a0a0b2] font-light mt-0.5">{greeting}, {nombreDra}!</p>
+              <h1 className="text-[18px] md:text-[20px] font-medium text-[#2D3339] tracking-tight">Centro de Control</h1>
+              <p className="text-[12px] text-[#8DAA68] font-medium mt-0.5">{greeting}</p>
             </div>
 
-            <div className="ml-auto flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-br from-[#fc855f] to-[#f06035] flex items-center justify-center text-white font-semibold text-[13px] shadow-sm border-2 border-white">
+            <div className="ml-auto flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-[var(--color-primary)] to-[#e87a60] flex items-center justify-center text-white font-medium text-[14px] shadow-sm border-2 border-white ring-2 ring-[#f0ece1]">
                 {fotoPerfil
                   ? <img src={fotoPerfil} alt="Avatar" className="w-full h-full object-cover" />
                   : iniciales[0]
@@ -207,12 +201,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </header>
         </div>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10 pt-2">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 lg:px-10 pt-4 pb-12">
           {children}
         </main>
       </div>
 
-      <Toaster position="top-right" richColors expand={false} />
+      <Toaster position="top-right" richColors expand={false} className="font-sans" />
     </div>
   );
 }
@@ -224,10 +218,10 @@ function MenuLink({ icon, text, href = "#" }: { icon: ReactNode, text: string, h
   return (
     <Link
       href={href}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-[13.5px]
+      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-[14px] font-medium
         ${active
-          ? 'bg-[#fc855f] text-white font-semibold shadow-[0_4px_14px_rgba(252,133,95,0.4)]'
-          : 'text-white/55 hover:bg-white/10 hover:text-white/90 font-light'
+          ? 'bg-[var(--color-primary-light)] text-[var(--color-primary)] shadow-sm'
+          : 'text-[#8591A0] hover:bg-[#FAF9F6] hover:text-[#2D3339]'
         }`}
     >
       <span className="shrink-0">{icon}</span>

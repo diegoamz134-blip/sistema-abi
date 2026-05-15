@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import type { Paciente, Cita } from "@/types";
 import ModalBase from "@/components/ModalBase";
 import ConfirmDialog from "@/components/ConfirmDialog";
+import MedicalRecordModal from "@/components/MedicalRecordModal";
 import SearchInput from "@/components/SearchInput";
 import Pagination from "@/components/Pagination";
 import Skeleton from "@/components/Skeleton";
@@ -385,144 +386,8 @@ export default function PacientesPage() {
         </form>
       </ModalBase>
 
-      {/* MODAL HISTORIAL DE CITAS */}
-      <ModalBase open={!!verHistorialPaciente} onClose={() => setVerHistorialPaciente(null)} maxWidth="max-w-4xl" shadowColor="rgba(20,184,166,0.2)" borderColor="border-teal-50" blobColor="bg-teal-200">
-         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 relative z-10">
-            <div className="flex items-center gap-5">
-               <div className="w-16 h-16 rounded-[1.5rem] bg-teal-50 flex items-center justify-center text-teal-400 shadow-sm border border-teal-100">
-                  <Activity className="w-7 h-7" />
-               </div>
-               <div>
-                  <h3 className="text-[#3b3a62] font-medium text-2xl">Historial Clínico: {verHistorialPaciente?.nombre}</h3>
-                  <p className="text-[13px] text-[#a0a0b2] font-light mt-0.5 tracking-wide">Dueño: {verHistorialPaciente?.dueno} • Reg: {verHistorialPaciente?.numero_historial}</p>
-               </div>
-            </div>
-            <div className="bg-white/50 backdrop-blur-sm px-5 py-3 rounded-2xl border border-teal-50 shadow-sm flex items-center gap-4">
-               <div className="text-center group pr-4 border-r border-teal-50">
-                  <p className="text-[10px] text-[#a0a0b2] uppercase font-bold tracking-widest mb-0.5">Visitas</p>
-                  <p className="text-[#3b3a62] font-semibold text-lg">{historialCitas.length}</p>
-               </div>
-               <div className="text-center">
-                  <p className="text-[10px] text-[#a0a0b2] uppercase font-bold tracking-widest mb-0.5">Última</p>
-                  <p className="text-[#3b3a62] font-semibold text-sm">{historialCitas[0]?.fecha.split('-').reverse().slice(0,2).join('/') || '--/--'}</p>
-               </div>
-            </div>
-         </div>
-
-         <div className="relative z-10 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar space-y-6">
-            {cargandoHistorial ? (
-               <div className="flex flex-col items-center justify-center h-40 text-teal-300 gap-3">
-                  <Loader2 className="w-8 h-8 animate-spin" />
-                  <p className="text-xs font-light tracking-widest uppercase">Consultando archivos...</p>
-               </div>
-            ) : historialCitas.length === 0 ? (
-               <div className="text-center p-12 bg-slate-50/50 border border-dashed border-slate-200 rounded-3xl">
-                  <Calendar className="w-10 h-10 mx-auto text-slate-200 mb-3" />
-                  <p className="text-[#a0a0b2] italic text-sm font-light">Este paciente aún no registra consultas médicas en el sistema.</p>
-               </div>
-            ) : (
-               <div className="space-y-3">
-                  {historialCitas.map((cita) => (
-                    <div 
-                      key={cita.id} 
-                      onClick={() => setCitaDetalle(cita)}
-                      className="group bg-white border border-slate-100/60 rounded-2xl p-4 hover:bg-slate-50/50 hover:border-teal-100/50 transition-all cursor-pointer shadow-sm flex items-center justify-between"
-                    >
-                       <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${cita.estado === 'Completada' ? 'bg-teal-50 text-teal-500' : 'bg-slate-100 text-slate-400'}`}>
-                             {cita.estado === 'Completada' ? <CheckCircle2 className="w-6 h-6"/> : <Activity className="w-6 h-6"/>}
-                          </div>
-                          <div>
-                             <h4 className="text-[#3b3a62] font-semibold text-[15px] uppercase tracking-wide">{cita.tipo}</h4>
-                             <p className="text-[#a0a0b2] text-[13px] font-light mt-0.5 flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {cita.fecha.split('-').reverse().join('/')}</p>
-                          </div>
-                       </div>
-                       <div className="flex items-center gap-4">
-                          <span className={`text-[11px] px-2.5 py-1 rounded-full font-medium ${cita.estado === 'Completada' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/50' : 'bg-slate-100 text-slate-500 border border-slate-200/50'}`}>
-                             {cita.estado}
-                          </span>
-                          <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center group-hover:bg-teal-500 group-hover:text-white group-hover:border-teal-500 transition-colors">
-                             <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-white transition-colors" />
-                          </div>
-                       </div>
-                    </div>
-                  ))}
-               </div>
-            )}
-         </div>
-      </ModalBase>
-
-      {/* MODAL DETALLE DE CITA (Vista Completa) */}
-      <ModalBase 
-         open={!!citaDetalle} 
-         onClose={() => setCitaDetalle(null)}
-         maxWidth="max-w-2xl"
-      >
-         {citaDetalle && (
-            <div className="space-y-5 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar pb-6">
-               <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 bg-slate-50/50 p-5 rounded-3xl border border-slate-100/60">
-                  <div className="flex items-center gap-4">
-                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 ${citaDetalle.estado === 'Completada' ? 'bg-teal-50 border-white text-teal-500 shadow-sm' : 'bg-slate-100 border-white text-slate-400'}`}>
-                        {citaDetalle.estado === 'Completada' ? <CheckCircle2 className="w-7 h-7"/> : <Clock className="w-7 h-7"/>}
-                     </div>
-                     <div>
-                        <h4 className="text-[#3b3a62] font-bold text-lg flex items-center gap-2 uppercase tracking-wide">
-                           {citaDetalle.tipo}
-                        </h4>
-                        <div className="flex items-center gap-2 mt-1">
-                           <p className="text-[#a0a0b2] text-[13px] font-medium flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" /> {citaDetalle.fecha.split('-').reverse().join('/')} • {citaDetalle.hora}</p>
-                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${citaDetalle.estado === 'Completada' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}>{citaDetalle.estado}</span>
-                        </div>
-                     </div>
-                  </div>
-                  
-                  <div className="flex flex-wrap items-center gap-3">
-                     <button
-                        onClick={compartirWhatsApp}
-                        className="flex items-center gap-2 px-4 py-2 bg-[#25D366]/10 text-[#25D366] rounded-xl font-medium text-sm hover:bg-[#25D366]/20 transition-colors shadow-sm whitespace-nowrap"
-                        title="Compartir por WhatsApp"
-                     >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.662-2.06-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
-                        </svg>
-                        Compartir
-                     </button>
-                     
-                     {citaDetalle.archivos && (citaDetalle.archivos as any[]).length > 0 && (
-                        <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
-                           {(citaDetalle.archivos as any[]).map((file, idx) => (
-                              <a key={idx} href={file.url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-500 hover:bg-blue-100 transition-colors shadow-sm" title={file.nombre}>
-                                 <FileText className="w-4 h-4" />
-                              </a>
-                           ))}
-                        </div>
-                     )}
-                  </div>
-               </div>
-
-               <div className="p-6 bg-teal-50/40 border border-teal-100/60 rounded-[24px]">
-                  <p className="text-[11px] text-teal-600 font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><Stethoscope className="w-4 h-4"/> Procedimiento Realizado</p>
-                  <p className="text-[#414066] text-[15px] leading-relaxed font-light italic">{citaDetalle.diagnostico || 'Sin información detallada del procedimiento.'}</p>
-               </div>
-
-               <div className="p-6 bg-emerald-50/40 border border-emerald-100/60 rounded-[24px]">
-                  <p className="text-[11px] text-emerald-600 font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><FileText className="w-4 h-4"/> Tratamiento / Receta</p>
-                  <p className="text-[#414066] text-[15px] leading-relaxed font-light">{citaDetalle.tratamiento || 'No se prescribió ningún tratamiento.'}</p>
-               </div>
-
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="p-6 bg-[#fff8f3]/60 border border-orange-100/60 rounded-[24px]">
-                     <p className="text-[11px] text-orange-500 font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> Observaciones</p>
-                     <p className="text-[#59587a] text-[14px] leading-relaxed font-light">{citaDetalle.observaciones || 'No se registraron observaciones adicionales para este procedimiento.'}</p>
-                  </div>
-                  <div className="p-6 bg-blue-50/40 border border-blue-100/60 rounded-[24px]">
-                     <p className="text-[11px] text-blue-500 font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><Info className="w-4 h-4"/> Recomendaciones</p>
-                     <p className="text-[#59587a] text-[14px] leading-relaxed font-light">{citaDetalle.recomendaciones || 'El paciente no requiere recomendaciones específicas por el momento.'}</p>
-                  </div>
-               </div>
-            </div>
-         )}
-      </ModalBase>
+      {/* MODAL HISTORIA CLINICA */}
+      <MedicalRecordModal paciente={verHistorialPaciente} onClose={() => setVerHistorialPaciente(null)} />
 
       {/* MODAL ELIMINAR PACIENTE */}
       <ConfirmDialog
