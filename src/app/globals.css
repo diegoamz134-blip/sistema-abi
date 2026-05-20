@@ -27,6 +27,13 @@ html, body {
   position: relative;
 }
 
+/* Evitar scroll horizontal en cualquier nivel */
+#__next,
+[data-nextjs-scroll-focus-boundary] {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

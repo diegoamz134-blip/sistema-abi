@@ -117,7 +117,7 @@ export default function VentasPage() {
   };
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 w-full min-w-0">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-[#2D3339] tracking-tight">Punto de Venta</h1>
@@ -143,8 +143,8 @@ export default function VentasPage() {
         />
       </div>
 
-      <div className="bg-white border border-[#f0ece1] rounded-[1.5rem] overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+      <div className="bg-white border border-[#f0ece1] rounded-[1.5rem] overflow-hidden shadow-sm w-full min-w-0">
+        <div className="w-full overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-[#f0ece1]">
@@ -339,7 +339,7 @@ function NuevaVentaModal({ open, onClose, inventario, onSuccess }: { open: boole
   return (
     <ModalBase open={open} onClose={onClose} maxWidth="max-w-4xl">
       <div className="mb-6 flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center">
+        <div className="w-12 h-12 rounded-xl bg-[var(--color-primary-light)] text-[var(--color-primary)] flex items-center justify-center shrink-0">
           <Banknote size={24} />
         </div>
         <div>
@@ -347,7 +347,7 @@ function NuevaVentaModal({ open, onClose, inventario, onSuccess }: { open: boole
           <p className="text-[#8591A0] text-sm">Crea una nueva venta y genera un ticket</p>
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full min-w-0">
         
         {/* Lado Izquierdo: Formulario de entrada */}
         <div className="space-y-6">

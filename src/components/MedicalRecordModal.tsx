@@ -32,6 +32,8 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
   const [editandoCita, setEditandoCita] = useState(false);
   const [editForm, setEditForm] = useState({ diagnostico: '', tratamiento: '', observaciones: '', recomendaciones: '' });
   const [guardandoCita, setGuardandoCita] = useState(false);
+  const [eliminandoCita, setEliminandoCita] = useState(false);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
 
   useEffect(() => {
     if (paciente) {
@@ -126,6 +128,25 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
       cargarDatos();
     } catch (error) {
       toast.error("Error al eliminar");
+    }
+  };
+
+  const eliminarCita = async () => {
+    if (!citaDetalle) return;
+    setEliminandoCita(true);
+    try {
+      const { error } = await supabase.from('citas').delete().eq('id', citaDetalle.id);
+      if (error) throw error;
+      // Quitar de la lista local
+      setCitas(prev => prev.filter(c => c.id !== citaDetalle.id));
+      setCitaDetalle(null);
+      setConfirmandoEliminar(false);
+      setEditandoCita(false);
+      toast.success("Consulta eliminada del historial");
+    } catch (error) {
+      toast.error("Error al eliminar la consulta");
+    } finally {
+      setEliminandoCita(false);
     }
   };
 
@@ -656,6 +677,39 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
                       </svg>
                       Enviar
                    </button>
+
+                   {/* Botón Eliminar con confirmación inline */}
+                   {!editandoCita && (
+                     confirmandoEliminar ? (
+                       <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-3 py-1.5">
+                         <span className="text-[12px] text-rose-600 font-medium whitespace-nowrap">¿Eliminar?</span>
+                         <button
+                           onClick={eliminarCita}
+                           disabled={eliminandoCita}
+                           className="flex items-center gap-1 px-3 py-1 bg-rose-500 text-white rounded-lg text-[12px] font-semibold hover:bg-rose-600 transition-colors disabled:opacity-50"
+                         >
+                           {eliminandoCita ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                           Sí, borrar
+                         </button>
+                         <button
+                           onClick={() => setConfirmandoEliminar(false)}
+                           disabled={eliminandoCita}
+                           className="px-2 py-1 text-[12px] text-slate-500 hover:text-slate-700 font-medium"
+                         >
+                           No
+                         </button>
+                       </div>
+                     ) : (
+                       <button
+                         onClick={() => setConfirmandoEliminar(true)}
+                         className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-500 rounded-xl font-medium text-sm hover:bg-rose-100 transition-colors shadow-sm whitespace-nowrap"
+                         title="Eliminar esta consulta del historial"
+                       >
+                         <Trash2 className="w-4 h-4" />
+                         Eliminar
+                       </button>
+                     )
+                   )}
                 </div>
              </div>
 

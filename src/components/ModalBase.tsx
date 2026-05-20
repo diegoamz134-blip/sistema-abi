@@ -32,31 +32,36 @@ export default function ModalBase({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[300] bg-[#3b3a62]/30 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 z-[300] bg-[#3b3a62]/30 backdrop-blur-sm overflow-y-auto overflow-x-hidden"
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className={`bg-white/95 backdrop-blur-2xl rounded-[1.5rem] md:rounded-[2rem] p-6 md:p-10 w-full ${maxWidth} shadow-[0_20px_80px_${shadowColor}] ${borderColor} border relative my-4 md:my-8 overflow-y-auto max-h-[calc(100vh-2rem)] ${height || ''}`}
-            style={{ boxShadow: `0 20px 80px ${shadowColor}` }}
-          >
-            {/* Botón Cerrar */}
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 md:top-6 md:right-6 w-10 h-10 rounded-full flex items-center justify-center bg-slate-50 hover:bg-rose-50 text-[#a0a0b2] hover:text-rose-500 transition-colors z-[350]"
+          {/* Contenedor centrado que permite scroll vertical en móvil */}
+          <div className="flex min-h-full items-center justify-center px-4 py-6 md:py-10">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className={`bg-white/95 backdrop-blur-2xl rounded-[1.5rem] md:rounded-[2rem] p-6 md:p-10 w-full ${maxWidth} border relative overflow-hidden ${borderColor} ${height || ''}`}
+              style={{ boxShadow: `0 20px 80px ${shadowColor}` }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="w-5 h-5" strokeWidth={2} />
-            </button>
+              {/* Botón Cerrar */}
+              <button
+                onClick={onClose}
+                className="absolute top-4 right-4 md:top-6 md:right-6 w-10 h-10 rounded-full flex items-center justify-center bg-slate-50 hover:bg-rose-50 text-[#a0a0b2] hover:text-rose-500 transition-colors z-[350]"
+              >
+                <X className="w-5 h-5" strokeWidth={2} />
+              </button>
 
-            {/* Blob decorativo */}
-            <div
-              className={`absolute top-0 right-0 w-64 h-64 ${blobColor} rounded-full mix-blend-multiply filter blur-[80px] opacity-10 translate-x-1/2 -translate-y-1/3 pointer-events-none`}
-            ></div>
+              {/* Blob decorativo */}
+              <div
+                className={`absolute top-0 right-0 w-64 h-64 ${blobColor} rounded-full mix-blend-multiply filter blur-[80px] opacity-10 translate-x-1/2 -translate-y-1/3 pointer-events-none`}
+              ></div>
 
-            {children}
-          </motion.div>
+              {children}
+            </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

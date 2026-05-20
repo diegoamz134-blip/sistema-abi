@@ -143,7 +143,7 @@ export default function Dashboard() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, ease: "easeOut" }}
-      className="max-w-[1400px] mx-auto space-y-8"
+      className="max-w-[1400px] mx-auto space-y-8 w-full min-w-0"
     >
       {/* Alerta de Stock Crítico */}
       <AnimatePresence>
@@ -197,7 +197,7 @@ export default function Dashboard() {
           </div>
           {graficoCargando && <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />}
         </div>
-        <div className="h-[250px] w-full">
+        <div className="h-[250px] w-full overflow-hidden">
           {graficoCargando ? (
             <Skeleton className="h-full w-full rounded-xl" />
           ) : (

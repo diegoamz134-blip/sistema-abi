@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Users, Plus, Loader2, Search, Trash2, Pencil, Calendar, 
   Phone, User as UserIcon, Info, ChevronRight, 
-  Stethoscope, Activity, Dna, Apple, Home, CheckCircle2, Clock, FileText, PawPrint, SearchX, AlertTriangle, Camera
+  Stethoscope, Activity, Dna, Apple, Home, CheckCircle2, Clock, FileText, PawPrint, SearchX, AlertTriangle, Camera, Zap
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -66,6 +66,16 @@ export default function PacientesPage() {
   const [peso, setPeso] = useState<number | "">("");
 
   const [enviando, setEnviando] = useState(false);
+
+  // Walk-in (consulta sin cita)
+  const [pacienteWalkIn, setPacienteWalkIn] = useState<Paciente | null>(null);
+  const [tipoConsultaWalkIn, setTipoConsultaWalkIn] = useState("");
+  const [notasWalkIn, setNotasWalkIn] = useState("");
+  const [diagnosticoWalkIn, setDiagnosticoWalkIn] = useState("");
+  const [tratamientoWalkIn, setTratamientoWalkIn] = useState("");
+  const [observacionesWalkIn, setObservacionesWalkIn] = useState("");
+  const [recomendacionesWalkIn, setRecomendacionesWalkIn] = useState("");
+  const [iniciandoConsulta, setIniciandoConsulta] = useState(false);
 
   useEffect(() => {
     const delay = setTimeout(() => { cargarPacientes(); }, 300);
@@ -281,6 +291,51 @@ export default function PacientesPage() {
     setEdad(""); setPeso("");
   };
 
+  const confirmarConsultaRapida = async () => {
+    if (!pacienteWalkIn) return;
+    setIniciandoConsulta(true);
+    try {
+      const ahora = new Date();
+      const hora = ahora.toTimeString().slice(0, 5);
+      const fecha = ahora.toISOString().split('T')[0];
+
+      const { error } = await supabase.from("citas").insert([{
+        mascota: pacienteWalkIn.nombre,
+        dueno: pacienteWalkIn.dueno,
+        telefono: pacienteWalkIn.telefono || '',
+        direccion: pacienteWalkIn.direccion || '',
+        fecha,
+        hora,
+        tipo: tipoConsultaWalkIn,
+        notas: notasWalkIn || 'Paciente sin cita previa',
+        diagnostico: diagnosticoWalkIn,
+        tratamiento: tratamientoWalkIn,
+        observaciones: observacionesWalkIn,
+        recomendaciones: recomendacionesWalkIn,
+        estado: 'Completada',
+        activa: true,
+      }]);
+
+      if (error) throw error;
+
+      toast.success("✅ Consulta guardada correctamente");
+      const pacienteParaHistorial = pacienteWalkIn;
+      setPacienteWalkIn(null);
+      setNotasWalkIn("");
+      setTipoConsultaWalkIn("");
+      setDiagnosticoWalkIn("");
+      setTratamientoWalkIn("");
+      setObservacionesWalkIn("");
+      setRecomendacionesWalkIn("");
+      // Abrir la historia clínica directo
+      setVerHistorialPaciente(pacienteParaHistorial);
+    } catch (err) {
+      toast.error("Error al iniciar la consulta");
+    } finally {
+      setIniciandoConsulta(false);
+    }
+  };
+
   const calcularFechaDesdeEdad = (edadStr: string) => {
     const hoy = new Date();
     if (edadStr.includes('mes')) {
@@ -386,19 +441,28 @@ export default function PacientesPage() {
                    </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2 mt-auto">
-                   <button onClick={() => cargarHistorial(p)} className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 hover:bg-teal-50 text-slate-400 hover:text-teal-500 transition-colors group/btn">
-                      <Activity className="w-4 h-4 mb-1" />
-                      <span className="text-[10px] font-medium">Historial</span>
-                   </button>
-                   <button onClick={() => iniciarEdicion(p)} className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-500 transition-colors group/btn">
-                      <Pencil className="w-4 h-4 mb-1" />
-                      <span className="text-[10px] font-medium">Editar</span>
-                   </button>
-                   <button onClick={() => setPacienteAEliminar(p)} className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 transition-colors group/btn">
-                      <Trash2 className="w-4 h-4 mb-1" />
-                      <span className="text-[10px] font-medium">Borrar</span>
-                   </button>
+                <div className="space-y-2 mt-auto">
+                  <div className="grid grid-cols-3 gap-2">
+                     <button onClick={() => cargarHistorial(p)} className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 hover:bg-teal-50 text-slate-400 hover:text-teal-500 transition-colors group/btn">
+                        <Activity className="w-4 h-4 mb-1" />
+                        <span className="text-[10px] font-medium">Historial</span>
+                     </button>
+                     <button onClick={() => iniciarEdicion(p)} className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 hover:bg-blue-50 text-slate-400 hover:text-blue-500 transition-colors group/btn">
+                        <Pencil className="w-4 h-4 mb-1" />
+                        <span className="text-[10px] font-medium">Editar</span>
+                     </button>
+                     <button onClick={() => setPacienteAEliminar(p)} className="flex flex-col items-center justify-center p-3 rounded-2xl bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 transition-colors group/btn">
+                        <Trash2 className="w-4 h-4 mb-1" />
+                        <span className="text-[10px] font-medium">Borrar</span>
+                     </button>
+                  </div>
+                  <button
+                    onClick={() => setPacienteWalkIn(p)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600 transition-all shadow-sm hover:shadow-md text-[12px] font-semibold active:scale-95"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    Atender Ahora
+                  </button>
                 </div>
               </motion.div>
             ))}
@@ -568,6 +632,125 @@ export default function PacientesPage() {
 
       {/* MODAL HISTORIA CLINICA */}
       <MedicalRecordModal paciente={verHistorialPaciente} onClose={() => setVerHistorialPaciente(null)} />
+
+      {/* MODAL CONSULTA RÁPIDA / WALK-IN */}
+      <ModalBase
+        open={!!pacienteWalkIn}
+        onClose={() => {
+          setPacienteWalkIn(null);
+          setNotasWalkIn(""); setTipoConsultaWalkIn("");
+          setDiagnosticoWalkIn(""); setTratamientoWalkIn("");
+          setObservacionesWalkIn(""); setRecomendacionesWalkIn("");
+        }}
+        maxWidth="max-w-2xl"
+      >
+        {/* Cabecera */}
+        <div className="flex items-center gap-4 mb-7 relative z-10">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center shadow-sm">
+            <Zap className="w-6 h-6 text-emerald-600" />
+          </div>
+          <div>
+            <h3 className="text-[#3b3a62] font-medium text-xl">Consulta Sin Cita</h3>
+            <p className="text-[13px] text-[#a0a0b2] font-light mt-0.5">
+              Paciente: <span className="font-medium text-[#3b3a62]">{pacienteWalkIn?.nombre}</span> • {pacienteWalkIn?.dueno}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-5 relative z-10 max-h-[70vh] overflow-y-auto pr-1 custom-scrollbar">
+          {/* Tipo de consulta + Notas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Tipo de Consulta</label>
+              <input
+                type="text"
+                value={tipoConsultaWalkIn}
+                onChange={(e) => setTipoConsultaWalkIn(e.target.value)}
+                placeholder="Ej: Consulta general, urgencia..."
+                className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#3b3a62] text-sm focus:ring-1 focus:ring-emerald-400/50 focus:outline-none border border-transparent focus:border-emerald-200 transition-all"
+              />
+            </div>
+            <div>
+              <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Motivo / Notas</label>
+              <input
+                type="text"
+                value={notasWalkIn}
+                onChange={(e) => setNotasWalkIn(e.target.value)}
+                placeholder="Ej: Llegó con vómitos..."
+                className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#3b3a62] text-sm focus:ring-1 focus:ring-emerald-400/50 focus:outline-none border border-transparent focus:border-emerald-200 transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Procedimiento Realizado */}
+          <div className="p-5 bg-teal-50/40 border border-teal-100/60 rounded-[20px]">
+            <p className="text-[11px] text-teal-600 font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Stethoscope className="w-4 h-4" /> Procedimiento Realizado
+            </p>
+            <textarea
+              value={diagnosticoWalkIn}
+              onChange={(e) => setDiagnosticoWalkIn(e.target.value)}
+              rows={3}
+              placeholder="Describe el procedimiento realizado..."
+              className="w-full bg-white border border-teal-200 rounded-xl p-3 text-[#414066] text-[14px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-300 resize-none"
+            />
+          </div>
+
+          {/* Tratamiento / Receta */}
+          <div className="p-5 bg-emerald-50/40 border border-emerald-100/60 rounded-[20px]">
+            <p className="text-[11px] text-emerald-600 font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+              <FileText className="w-4 h-4" /> Tratamiento / Receta
+            </p>
+            <textarea
+              value={tratamientoWalkIn}
+              onChange={(e) => setTratamientoWalkIn(e.target.value)}
+              rows={3}
+              placeholder="Describe el tratamiento o receta médica..."
+              className="w-full bg-white border border-emerald-200 rounded-xl p-3 text-[#414066] text-[14px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none"
+            />
+          </div>
+
+          {/* Observaciones y Recomendaciones */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-5 bg-[#fff8f3]/60 border border-orange-100/60 rounded-[20px]">
+              <p className="text-[11px] text-orange-500 font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" /> Observaciones
+              </p>
+              <textarea
+                value={observacionesWalkIn}
+                onChange={(e) => setObservacionesWalkIn(e.target.value)}
+                rows={3}
+                placeholder="Observaciones relevantes..."
+                className="w-full bg-white border border-orange-200 rounded-xl p-3 text-[#59587a] text-[13px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-orange-200 resize-none"
+              />
+            </div>
+            <div className="p-5 bg-blue-50/40 border border-blue-100/60 rounded-[20px]">
+              <p className="text-[11px] text-blue-500 font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+                <Info className="w-4 h-4" /> Recomendaciones
+              </p>
+              <textarea
+                value={recomendacionesWalkIn}
+                onChange={(e) => setRecomendacionesWalkIn(e.target.value)}
+                rows={3}
+                placeholder="Recomendaciones para el dueño..."
+                className="w-full bg-white border border-blue-200 rounded-xl p-3 text-[#59587a] text-[13px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Botón guardar */}
+          <button
+            onClick={confirmarConsultaRapida}
+            disabled={iniciandoConsulta}
+            className="w-full h-14 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-semibold text-[15px] rounded-2xl shadow-[0_8px_25px_rgba(16,185,129,0.25)] hover:shadow-[0_12px_30px_rgba(16,185,129,0.35)] transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {iniciandoConsulta
+              ? <Loader2 className="w-5 h-5 animate-spin" />
+              : <><Zap className="w-5 h-5" /> Guardar Consulta</>
+            }
+          </button>
+        </div>
+      </ModalBase>
 
       {/* MODAL ELIMINAR PACIENTE */}
       <ConfirmDialog

@@ -183,7 +183,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* ─── CONTENIDO PRINCIPAL ─── */}
-      <div className="flex-1 flex flex-col min-h-screen md:pl-[272px] w-full max-w-full overflow-x-hidden">
+      <div className="flex-1 flex flex-col min-h-screen md:pl-[272px] w-full max-w-full overflow-x-hidden min-w-0">
 
         {/* Header flotante */}
         <div className="sticky top-0 z-20 px-4 pt-4 pb-2 pointer-events-none">
@@ -211,7 +211,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </header>
         </div>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 lg:px-10 pt-4 pb-12">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 lg:px-10 pt-4 pb-12 w-full min-w-0">
           {children}
         </main>
       </div>
