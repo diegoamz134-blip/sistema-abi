@@ -1,4 +1,4 @@
-import { insforge } from "./insforge";
+import { supabase } from "./supabase";
 
 export const fetcher = async (key: string) => {
   const firstColonIndex = key.indexOf(':');
@@ -21,7 +21,7 @@ export const fetcher = async (key: string) => {
   const selectArgs = customSelect || '*';
   const selectOptions = count ? { count } : undefined;
   
-  let dbQuery: any = insforge.database.from(table).select(selectArgs, selectOptions);
+  let dbQuery: any = supabase.from(table).select(selectArgs, selectOptions);
   
   // Aplicar filtros dinámicos (eq, order, etc) sólo si el método existe en el builder
   Object.entries(methods).forEach(([method, args]) => {

@@ -59,6 +59,7 @@ export interface ArticuloInventario {
   categoria: string;
   cantidad: number;
   unidad_medida?: string;
+  precio_compra?: number;
   precio_venta?: number;
   stock_minimo: number;
   created_at: string;
@@ -88,6 +89,27 @@ export interface Recordatorio {
   texto: string;
   completado: boolean;
   fecha: string;
+}
+
+export interface Venta {
+  id: string;
+  mascota: string;
+  dueno: string;
+  total: number;
+  metodo_pago: string;
+  fecha: string;
+  created_at: string;
+}
+
+export interface VentaDetalle {
+  id: string;
+  venta_id: string;
+  concepto: string;
+  articulo_id?: string;
+  cantidad: number;
+  precio_compra?: number;
+  precio_unitario: number;
+  subtotal: number;
 }
 
 export interface StatCardProps {

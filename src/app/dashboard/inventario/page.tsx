@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Package, Search, AlertTriangle, Pencil, Trash2, Tag, Loader2, BarChart3, Database } from "lucide-react";
-import { insforge } from "@/lib/insforge";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import { fetcher } from "@/lib/fetchers";
 import ModalBase from "@/components/ModalBase";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -22,7 +22,7 @@ export default function InventarioPage() {
   const [paginaActual, setPaginaActual] = useState(1);
   const POR_PAGINA = 10;
 
-  const { data, isLoading } = useSWR(INVENTARIO_KEY, fetcher);
+  const { data, isLoading, mutate } = useSWR(INVENTARIO_KEY, fetcher);
   const articulos = (data || []) as ArticuloInventario[];
 
   // Filtrado y Paginación Local
@@ -43,6 +43,7 @@ export default function InventarioPage() {
   const [categoria, setCategoria] = useState("Medicamento");
   const [cantidad, setCantidad] = useState<number>(0);
   const [unidadMedida, setUnidadMedida] = useState("Unidad");
+  const [precioCompra, setPrecioCompra] = useState<number>(0);
   const [precioVenta, setPrecioVenta] = useState<number>(0);
   const [stockMinimo, setStockMinimo] = useState<number>(5);
   const [enviando, setEnviando] = useState(false);
@@ -56,7 +57,7 @@ export default function InventarioPage() {
   const limpiarFormulario = () => {
     setEditandoId(null);
     setNombre(""); setCategoria("Medicamento"); setCantidad(0);
-    setUnidadMedida("Unidad"); setPrecioVenta(0); setStockMinimo(5);
+    setUnidadMedida("Unidad"); setPrecioCompra(0); setPrecioVenta(0); setStockMinimo(5);
   };
 
   const iniciarEdicion = (a: ArticuloInventario) => {
@@ -65,6 +66,7 @@ export default function InventarioPage() {
     setCategoria(a.categoria);
     setCantidad(a.cantidad);
     setUnidadMedida(a.unidad_medida || "Unidad");
+    setPrecioCompra(a.precio_compra || 0);
     setPrecioVenta(a.precio_venta || 0);
     setStockMinimo(a.stock_minimo);
     setMostrarModal(true);
@@ -76,18 +78,18 @@ export default function InventarioPage() {
 
     const articuloData = {
       nombre, categoria, cantidad, unidad_medida: unidadMedida,
-      precio_venta: precioVenta, stock_minimo: stockMinimo
+      precio_compra: precioCompra, precio_venta: precioVenta, stock_minimo: stockMinimo
     };
 
     try {
       if (editandoId) {
-        await insforge.database.from("inventario").update(articuloData).eq("id", editandoId);
+        await supabase.from("inventario").update(articuloData).eq("id", editandoId);
         toast.success("Artículo actualizado");
       } else {
-        await insforge.database.from("inventario").insert([articuloData]);
+        await supabase.from("inventario").insert([articuloData]);
         toast.success("Artículo registrado");
       }
-      mutate(INVENTARIO_KEY);
+      await mutate();
       setMostrarModal(false);
       limpiarFormulario();
     } catch (error) {
@@ -100,9 +102,9 @@ export default function InventarioPage() {
   const eliminarArticulo = async () => {
     if (!articuloAEliminar) return;
     try {
-      await insforge.database.from("inventario").delete().eq("id", articuloAEliminar.id);
+      await supabase.from("inventario").delete().eq("id", articuloAEliminar.id);
       toast.success("Artículo eliminado");
-      mutate(INVENTARIO_KEY);
+      await mutate();
     } catch (error) {
       toast.error("Error al eliminar");
     } finally {
@@ -170,7 +172,8 @@ export default function InventarioPage() {
                   <th className="px-6 py-4 text-[13px] font-medium text-[#A0AAB2] uppercase tracking-wider">Producto</th>
                   <th className="px-6 py-4 text-[13px] font-medium text-[#A0AAB2] uppercase tracking-wider">Categoría</th>
                   <th className="px-6 py-4 text-[13px] font-medium text-[#A0AAB2] uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-4 text-[13px] font-medium text-[#A0AAB2] uppercase tracking-wider">Precio</th>
+                  <th className="px-6 py-4 text-[13px] font-medium text-[#A0AAB2] uppercase tracking-wider">P. Compra</th>
+                  <th className="px-6 py-4 text-[13px] font-medium text-[#A0AAB2] uppercase tracking-wider">P. Venta</th>
                   <th className="px-6 py-4 text-[13px] font-medium text-[#A0AAB2] uppercase tracking-wider text-right">Acciones</th>
                 </tr>
               </thead>
@@ -212,8 +215,11 @@ export default function InventarioPage() {
                           <span className="text-xs text-[#A0AAB2]">{articulo.unidad_medida}</span>
                         </div>
                       </td>
+                      <td className="px-6 py-4 text-xs font-normal text-slate-500">
+                        S/ {articulo.precio_compra?.toFixed(2) || '0.00'}
+                      </td>
                       <td className="px-6 py-4 font-medium text-[#8DAA68]">
-                        ${articulo.precio_venta?.toFixed(2) || '0.00'}
+                        S/ {articulo.precio_venta?.toFixed(2) || '0.00'}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
@@ -280,7 +286,7 @@ export default function InventarioPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-medium text-[#8591A0] mb-1.5 block">Cantidad Actual</label>
               <input type="number" min="0" required value={cantidad} onChange={(e) => setCantidad(Number(e.target.value))} className="w-full h-11 bg-white border border-[#f0ece1] rounded-xl px-4 text-[#2D3339] text-sm focus:border-[var(--color-primary)] focus:outline-none transition-all" />
@@ -289,8 +295,15 @@ export default function InventarioPage() {
               <label className="text-xs font-medium text-[#8591A0] mb-1.5 block">Stock Mínimo</label>
               <input type="number" min="0" required value={stockMinimo} onChange={(e) => setStockMinimo(Number(e.target.value))} className="w-full h-11 bg-white border border-[#f0ece1] rounded-xl px-4 text-[#2D3339] text-sm focus:border-[var(--color-primary)] focus:outline-none transition-all" />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-[#8591A0] mb-1.5 block">Precio Venta ($)</label>
+              <label className="text-xs font-medium text-[#8591A0] mb-1.5 block">Precio Compra (S/)</label>
+              <input type="number" min="0" step="0.01" value={precioCompra} onChange={(e) => setPrecioCompra(Number(e.target.value))} className="w-full h-11 bg-white border border-[#f0ece1] rounded-xl px-4 text-[#2D3339] text-sm focus:border-[var(--color-primary)] focus:outline-none transition-all" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-[#8591A0] mb-1.5 block">Precio Venta (S/)</label>
               <input type="number" min="0" step="0.01" value={precioVenta} onChange={(e) => setPrecioVenta(Number(e.target.value))} className="w-full h-11 bg-white border border-[#f0ece1] rounded-xl px-4 text-[#2D3339] text-sm focus:border-[var(--color-primary)] focus:outline-none transition-all" />
             </div>
           </div>

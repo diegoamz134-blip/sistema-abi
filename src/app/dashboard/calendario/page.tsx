@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar as CalendarIcon, Clock, Plus, Loader2, User, Stethoscope, ChevronLeft, ChevronRight, X, AlertTriangle, FileText, CheckCircle2, Phone, Home, Pencil } from "lucide-react";
-import { insforge } from "@/lib/insforge";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import type { Cita } from "@/types";
 import ModalBase from "@/components/ModalBase";
@@ -45,7 +45,7 @@ export default function CalendarioPage() {
       const startDate = firstDay.toISOString().split('T')[0];
       const endDate = lastDay.toISOString().split('T')[0];
 
-      const { data, error } = await insforge.database
+      const { data, error } = await supabase
         .from("citas")
         .select('*')
         .gte('fecha', startDate)
@@ -77,7 +77,7 @@ export default function CalendarioPage() {
     const datosCita = { mascota, dueno, telefono, direccion, fecha: fechaSeleccionada, hora: stringHora, tipo, notas, estado: 'Pendiente', activa: true };
     
     try {
-      const { error } = await insforge.database.from("citas").insert([datosCita]);
+      const { error } = await supabase.from("citas").insert([datosCita]);
       if (error) {
         toast.error("Error al agendar");
       } else {
@@ -89,7 +89,7 @@ export default function CalendarioPage() {
         window.open(waUrl, '_blank');
         
         setMostrarModalForm(false);
-        const { data } = await insforge.database.from("citas").select('*').order('hora', { ascending: true });
+        const { data } = await supabase.from("citas").select('*').order('hora', { ascending: true });
         if (data) setCitas(data as Cita[]);
       }
     } catch (e) {
@@ -236,16 +236,16 @@ export default function CalendarioPage() {
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative group">
-              <input type="text" required value={dueno} onChange={(e) => setDueno(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Nombre Dueño" />
+              <input type="text" value={dueno} onChange={(e) => setDueno(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Nombre Dueño" />
               <User className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8DAA68]/50" />
             </div>
             <div className="relative group">
-              <input type="tel" required value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Teléfono" />
+              <input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Teléfono" />
               <Phone className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8DAA68]/50" />
             </div>
           </div>
           <div className="relative group">
-            <input type="text" value={direccion} onChange={(e) => setDireccion(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Dirección (Opcional)" />
+            <input type="text" value={direccion} onChange={(e) => setDireccion(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Dirección" />
             <Home className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8DAA68]/50" />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -259,7 +259,7 @@ export default function CalendarioPage() {
             </div>
           </div>
           <div className="relative group mt-2">
-            <input type="text" required value={tipo} onChange={(e) => setTipo(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Motivo de Consulta (Ej. Vacunación)" />
+            <input type="text" value={tipo} onChange={(e) => setTipo(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Motivo de Consulta (Ej. Vacunación)" />
             <Stethoscope className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8DAA68]/50" />
           </div>
           <div className="relative group mt-6 bg-[#f4f7f0]/30 p-4 rounded-xl border border-[#eef2e8]/30">

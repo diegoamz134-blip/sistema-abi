@@ -1,12 +1,12 @@
 'use server'
 
-import { createInsForgeServerClient, setAuthCookies, clearAuthCookies } from '@/lib/insforge-server'
+import { createSupabaseServerClient, setAuthCookies, clearAuthCookies } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 
 export async function signIn(formData: FormData) {
-  const insforge = createInsForgeServerClient()
-  const { data, error } = await insforge.auth.signInWithPassword({
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase.auth.signInWithPassword({
     email: String(formData.get('email') ?? '').trim(),
     password: String(formData.get('password') ?? '')
   })
@@ -17,11 +17,11 @@ export async function signIn(formData: FormData) {
     errorMessage = "Correo o contraseña incorrectos.";
   }
 
-  if (error || !data?.accessToken || !data?.refreshToken) {
+  if (error || !data?.session?.access_token || !data?.session?.refresh_token) {
     return { success: false, error: errorMessage ?? 'Error al iniciar sesión.' }
   }
 
-  await setAuthCookies(data.accessToken, data.refreshToken)
+  await setAuthCookies(data.session.access_token, data.session.refresh_token)
   return { success: true }
 }
 
@@ -36,17 +36,15 @@ export async function getUserProfile() {
   if (!token) return null;
   
   try {
-    const insforge = createInsForgeServerClient(token);
-    // Usamos 'as any' porque el linter puede no tener la definición más reciente, 
-    // pero la skill confirma que es el método correcto.
-    const { data, error } = await (insforge.auth as any).getCurrentSession();
+    const supabase = createSupabaseServerClient(token);
+    const { data, error } = await supabase.auth.getUser();
     
     if (error) {
       console.warn("getUserProfile SDK error:", error.message);
       return null;
     }
     
-    return data?.session?.user ?? data?.user ?? null;
+    return data?.user ?? null;
   } catch (error) {
     console.error("getUserProfile fatal error:", error);
     return null;
@@ -59,9 +57,9 @@ export async function updateProfileInfo(nombre_clinica: string) {
   if (!token) return { error: "No autenticado" };
   
   try {
-    const insforge = createInsForgeServerClient(token);
-    const { data, error } = await (insforge.auth as any).setProfile({
-      nombre_clinica
+    const supabase = createSupabaseServerClient(token);
+    const { data, error } = await supabase.auth.updateUser({
+      data: { nombre_clinica }
     });
     
     if (error) return { error: error.message };
@@ -77,9 +75,9 @@ export async function updateProfileFoto(foto_perfil: string) {
   if (!token) return { error: "No autenticado" };
   
   try {
-    const insforge = createInsForgeServerClient(token);
-    const { data, error } = await (insforge.auth as any).setProfile({
-      foto_perfil
+    const supabase = createSupabaseServerClient(token);
+    const { data, error } = await supabase.auth.updateUser({
+      data: { foto_perfil }
     });
     
     if (error) return { error: error.message };
@@ -95,8 +93,8 @@ export async function updateUserPassword(password: string) {
   if (!token) return { error: "No autenticado" };
   
   try {
-    const insforge = createInsForgeServerClient(token);
-    const { error } = await (insforge.auth as any).updateUser({ password });
+    const supabase = createSupabaseServerClient(token);
+    const { error } = await supabase.auth.updateUser({ password });
     
     if (error) return { error: error.message };
     return { success: true };

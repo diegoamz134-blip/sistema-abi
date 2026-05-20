@@ -1,12 +1,12 @@
 "use client";
 
 import { ReactNode, useState, useEffect, useRef } from "react";
-import { PawPrint, Users, Calendar, Clock, LogOut, Menu, X, Camera, Package, BarChart3, BookOpen } from "lucide-react";
+import { PawPrint, Users, Calendar, Clock, LogOut, Menu, X, Camera, Package, BarChart3, BookOpen, Banknote } from "lucide-react";
 import { Toaster } from "sonner";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, getUserProfile, updateProfileFoto } from "@/app/actions/auth";
-import { insforge } from "@/lib/insforge";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -82,7 +82,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           const urlParts = fotoPerfil.split('/');
           const fileName = urlParts[urlParts.length - 1];
           if (fileName) {
-            await insforge.storage.from('historial').remove(fileName);
+            await supabase.storage.from('historial').remove([fileName]);
           }
         } catch (err) {
           console.error("Error al borrar foto anterior", err);
@@ -91,12 +91,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
       // 4. Subir la nueva foto
       const fileName = `avatar_${Date.now()}_${fotoComprimida.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
-      const { data, error } = await insforge.storage.from('historial').upload(fileName, fotoComprimida);
+      const { data, error } = await supabase.storage.from('historial').upload(fileName, fotoComprimida);
       
       if (error) throw error;
 
       // Obtener URL pública
-      const publicUrl = insforge.storage.from('historial').getPublicUrl(fileName) as string;
+      const { data: publicData } = supabase.storage.from('historial').getPublicUrl(fileName);
+      const publicUrl = publicData.publicUrl;
 
       // 5. Actualizar metadata del usuario
       const response = await updateProfileFoto(publicUrl);
@@ -112,7 +113,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--background)] flex font-sans relative text-[var(--foreground)]">
+    <div className="min-h-screen bg-[var(--background)] flex font-sans relative text-[var(--foreground)] w-full max-w-full overflow-x-hidden">
       {/* Overlay móvil */}
       {menuAbierto && (
         <div
@@ -157,6 +158,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <MenuLink href="/dashboard/calendario" icon={<Calendar  size={18} strokeWidth={2} />} text="Calendario" />
           <MenuLink href="/dashboard/citas"      icon={<Clock     size={18} strokeWidth={2} />} text="Lista de Citas" />
           <MenuLink href="/dashboard/pacientes"  icon={<Users     size={18} strokeWidth={2} />} text="Pacientes" />
+          <MenuLink href="/dashboard/ventas"     icon={<Banknote  size={18} strokeWidth={2} />} text="Punto de Venta" />
           <MenuLink href="/dashboard/inventario" icon={<Package   size={18} strokeWidth={2} />} text="Inventario" />
           <MenuLink href="/dashboard/reportes"   icon={<BarChart3 size={18} strokeWidth={2} />} text="Reportes" />
         </nav>
@@ -181,7 +183,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </aside>
 
       {/* ─── CONTENIDO PRINCIPAL ─── */}
-      <div className="flex-1 flex flex-col min-h-screen md:pl-[272px]">
+      <div className="flex-1 flex flex-col min-h-screen md:pl-[272px] w-full max-w-full overflow-x-hidden">
 
         {/* Header flotante */}
         <div className="sticky top-0 z-20 px-4 pt-4 pb-2 pointer-events-none">

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Calendar as CalendarIcon, Clock, Plus, Loader2, User, Stethoscope, AlertTriangle, CheckCircle2, FileText, UploadCloud, X, Trash2, Pencil, Phone, Home } from "lucide-react";
-import { insforge } from "@/lib/insforge";
+import { Calendar as CalendarIcon, Clock, Plus, Loader2, User, Stethoscope, AlertTriangle, CheckCircle2, FileText, UploadCloud, X, Trash2, Pencil, Phone, Home, Inbox, CalendarX } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import type { Cita, Paciente } from "@/types";
+import type { Cita } from "@/types";
 import ModalBase from "@/components/ModalBase";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pagination from "@/components/Pagination";
@@ -14,14 +14,13 @@ import TimePickerInput from "@/components/TimePickerInput";
 import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
 import SearchInput from "@/components/SearchInput";
-import { Inbox, CalendarX } from "lucide-react";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import { fetcher } from "@/lib/fetchers";
 
 const CITAS_ALL_KEY = 'citas:{"order":["fecha",{"ascending":false}]}' ;
 
 export default function CitasPage() {
-  const { data: citasData, isLoading: cargando } = useSWR(CITAS_ALL_KEY, fetcher);
+  const { data: citasData, isLoading: cargando, mutate } = useSWR(CITAS_ALL_KEY, fetcher);
   const citas = (citasData || []) as Cita[];
 
   const [enviando, setEnviando] = useState(false);
@@ -68,20 +67,7 @@ export default function CitasPage() {
   const [minutoSeleccionado, setMinutoSeleccionado] = useState("00");
   const [amPm, setAmPm] = useState("AM");
 
-  useEffect(() => {
-    const delay = setTimeout(() => { cargarCitas(); }, 300);
-    return () => clearTimeout(delay);
-  }, [busqueda, paginaActual]);
 
-  async function cargarCitas() {
-    // This function is no longer needed as SWR handles fetching
-    // setCargando(true);
-    // let query = insforge.database.from("citas").select('*', { count: 'exact' });
-    // if (busqueda) query = query.or(`mascota.ilike.%${busqueda}%,dueno.ilike.%${busqueda}%,tipo.ilike.%${busqueda}%`);
-    // const { data, count, error } = await query.order('fecha', { ascending: true }).range((paginaActual - 1) * POR_PAGINA, (paginaActual * POR_PAGINA) - 1);
-    // if (!error && data) { setCitas(data as Cita[]); setTotalCitas(count || 0); }
-    // setCargando(false);
-  }
 
   const agendarOActualizarCita = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,10 +77,10 @@ export default function CitasPage() {
 
     try {
       if (editandoId) {
-        await insforge.database.from("citas").update(datosCita).eq("id", editandoId);
+        await supabase.from("citas").update(datosCita).eq("id", editandoId);
         toast.success("Cita actualizada elegantemente.");
       } else {
-        const { error } = await insforge.database.from("citas").insert([datosCita]);
+        const { error } = await supabase.from("citas").insert([datosCita]);
       
         if (error) {
           toast.error("Error al agendar");
@@ -107,7 +93,7 @@ export default function CitasPage() {
           window.open(waUrl, '_blank');
         }
       }
-      mutate(CITAS_ALL_KEY);
+      await mutate();
       cancelarEdicion();
       setMostrarModalForm(false);
     } catch (e) {
@@ -131,11 +117,11 @@ export default function CitasPage() {
   };
 
   const cambiarEstadoDirecto = async (id: string, nuevoEstado: string) => {
-    const { error } = await insforge.database.from("citas").update({ estado: nuevoEstado }).eq("id", id);
+    const { error } = await supabase.from("citas").update({ estado: nuevoEstado }).eq("id", id);
     if (error) { 
       toast.error("No se pudo actualizar el estado."); 
     } else { 
-      mutate(CITAS_ALL_KEY);
+      await mutate();
       toast.success(`Cita marcada como ${nuevoEstado}.`); 
     }
   };
@@ -181,7 +167,7 @@ export default function CitasPage() {
 
     for (const file of archivosSeleccionados) {
       const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
-      const { data, error } = await insforge.storage.from('historial').upload(fileName, file);
+      const { data, error } = await supabase.storage.from('historial').upload(fileName, file);
       if (data) {
         const uploadData = data as any;
         const filePath = uploadData.path || uploadData.url || uploadData.key || fileName;
@@ -191,7 +177,7 @@ export default function CitasPage() {
       }
     }
 
-    const { error } = await insforge.database.from("citas").update({
+    const { error } = await supabase.from("citas").update({
       estado: 'Completada',
       diagnostico,
       tratamiento,
@@ -207,7 +193,7 @@ export default function CitasPage() {
     } else {
       toast.success("Expediente clínico guardado y cita completada.", { style: { background: '#ecfeff', color: '#14b8a6', border: 'none' }});
       setModalConsulta(null);
-      mutate(CITAS_ALL_KEY);
+      await mutate();
     }
   };
 
@@ -219,9 +205,9 @@ export default function CitasPage() {
 
   const eliminarCita = async () => {
     if(!citaAEliminar) return;
-    const { error } = await insforge.database.from("citas").delete().eq("id", citaAEliminar.id);
+    const { error } = await supabase.from("citas").delete().eq("id", citaAEliminar.id);
     if(error) toast.error("Error al eliminar el turno.");
-    else { toast.success("Turno borrado de la agenda."); setCitaAEliminar(null); mutate(CITAS_ALL_KEY); }
+    else { toast.success("Turno borrado de la agenda."); setCitaAEliminar(null); await mutate(); }
   };
 
   const iniciarEdicion = (cita: Cita) => {
@@ -444,16 +430,16 @@ export default function CitasPage() {
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative group">
-              <input type="text" required value={dueno} onChange={(e) => setDueno(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Nombre Dueño" />
+              <input type="text" value={dueno} onChange={(e) => setDueno(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Nombre Dueño" />
               <User className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8DAA68]/50" />
             </div>
             <div className="relative group">
-              <input type="tel" required value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Teléfono" />
+              <input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Teléfono" />
               <Phone className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8DAA68]/50" />
             </div>
           </div>
           <div className="relative group">
-            <input type="text" value={direccion} onChange={(e) => setDireccion(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Dirección (Opcional)" />
+            <input type="text" value={direccion} onChange={(e) => setDireccion(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Dirección" />
             <Home className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8DAA68]/50" />
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -467,7 +453,7 @@ export default function CitasPage() {
             </div>
           </div>
           <div className="relative group mt-2">
-            <input type="text" required value={tipo} onChange={(e) => setTipo(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Motivo de Consulta (Ej. Vacunación)" />
+            <input type="text" value={tipo} onChange={(e) => setTipo(e.target.value)} className="w-full h-11 bg-transparent border-b border-[#eef2e8] focus:outline-none focus:border-[#8DAA68] text-[#8DAA68] pl-9 text-[15px]" placeholder="Motivo de Consulta (Ej. Vacunación)" />
             <Stethoscope className="absolute left-0 top-1/2 -translate-y-1/2 w-5 h-5 text-[#8DAA68]/50" />
           </div>
           <div className="relative group mt-6 bg-[#f4f7f0]/30 p-4 rounded-xl border border-[#eef2e8]/30">

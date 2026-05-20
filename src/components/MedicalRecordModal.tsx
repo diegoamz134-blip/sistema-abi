@@ -2,11 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Activity, Calendar, FileText, Syringe, Plus, Clock, File, Trash2, Loader2, Download, AlertTriangle, ChevronRight, CheckCircle2, Stethoscope, Info } from "lucide-react";
+import { Activity, Calendar, FileText, Syringe, Plus, Clock, File, Trash2, Loader2, Download, AlertTriangle, ChevronRight, CheckCircle2, Stethoscope, Info, Pencil, Save, X } from "lucide-react";
 import ModalBase from "./ModalBase";
-import { insforge } from "@/lib/insforge";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { jsPDF } from "jspdf";
 import type { Paciente, HistorialClinico, Vacuna, Cita } from "@/types";
 
 interface Props {
@@ -29,6 +28,11 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
   const [nuevaVacuna, setNuevaVacuna] = useState({ tipo: 'Vacuna', nombre: '', fecha_aplicacion: '', proxima_dosis: '', notas: '' });
   const [subiendoArchivo, setSubiendoArchivo] = useState(false);
 
+  // Estado para edición de consulta
+  const [editandoCita, setEditandoCita] = useState(false);
+  const [editForm, setEditForm] = useState({ diagnostico: '', tratamiento: '', observaciones: '', recomendaciones: '' });
+  const [guardandoCita, setGuardandoCita] = useState(false);
+
   useEffect(() => {
     if (paciente) {
       cargarDatos();
@@ -39,15 +43,23 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
     if (!paciente) return;
     setCargando(true);
     try {
-      const [resHistorial, resVacunas, resCitas] = await Promise.all([
-        insforge.database.from('historial_clinico').select('*').eq('paciente_id', paciente.id).order('fecha', { ascending: false }),
-        insforge.database.from('vacunas').select('*').eq('paciente_id', paciente.id).order('fecha_aplicacion', { ascending: false }),
-        insforge.database.from('citas').select('*').eq('mascota', paciente.nombre).eq('dueno', paciente.dueno).order('fecha', { ascending: false })
-      ]);
+      const resHistorial = await supabase.from('historial_clinico').select('*').eq('paciente_id', paciente.id).order('fecha', { ascending: false });
+      const resVacunas = await supabase.from('vacunas').select('*').eq('paciente_id', paciente.id).order('fecha_aplicacion', { ascending: false });
+      const resCitas = await supabase.from('citas').select('*').eq('mascota', paciente.nombre).order('fecha', { ascending: false });
       
       if (resHistorial.data) setHistorial(resHistorial.data as HistorialClinico[]);
       if (resVacunas.data) setVacunas(resVacunas.data as Vacuna[]);
-      if (resCitas.data) setCitas(resCitas.data as Cita[]);
+      if (resCitas.data) {
+        // Filtrado flexible: si alguno no tiene dueño, confiamos en el nombre de la mascota.
+        // Si ambos tienen dueño, verificamos que coincidan parcialmente.
+        const citasFiltradas = (resCitas.data as Cita[]).filter(c => {
+           if (!paciente.dueno || !c.dueno) return true;
+           const d1 = paciente.dueno.toLowerCase().trim();
+           const d2 = c.dueno.toLowerCase().trim();
+           return d1.includes(d2) || d2.includes(d1);
+        });
+        setCitas(citasFiltradas);
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -64,10 +76,11 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
       const fileExt = file.name.split('.').pop();
       const fileName = `${paciente.id}/${Date.now()}.${fileExt}`;
       
-      const { error: uploadError } = await insforge.storage.from('historial').upload(fileName, file);
+      const { error: uploadError } = await supabase.storage.from('historial').upload(fileName, file);
       if (uploadError) throw uploadError;
 
-      const publicUrl = insforge.storage.from('historial').getPublicUrl(fileName) as string;
+      const { data: publicData } = supabase.storage.from('historial').getPublicUrl(fileName);
+      const publicUrl = publicData.publicUrl;
 
       const nuevoRegistro: Partial<HistorialClinico> = {
         paciente_id: paciente.id,
@@ -77,7 +90,7 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
         archivos: [{ url: publicUrl, nombre: file.name, tipo: file.type }]
       };
 
-      await insforge.database.from('historial_clinico').insert([nuevoRegistro]);
+      await supabase.from('historial_clinico').insert([nuevoRegistro]);
       toast.success("Archivo subido correctamente");
       cargarDatos();
     } catch (error) {
@@ -92,7 +105,7 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
     if (!paciente) return;
     
     try {
-      await insforge.database.from('vacunas').insert([{
+      await supabase.from('vacunas').insert([{
         paciente_id: paciente.id,
         ...nuevaVacuna,
         fecha_aplicacion: nuevaVacuna.fecha_aplicacion || new Date().toISOString().split('T')[0]
@@ -108,11 +121,69 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
 
   const eliminarVacuna = async (id: string) => {
     try {
-      await insforge.database.from('vacunas').delete().eq('id', id);
+      await supabase.from('vacunas').delete().eq('id', id);
       toast.success("Registro eliminado");
       cargarDatos();
     } catch (error) {
       toast.error("Error al eliminar");
+    }
+  };
+
+  const iniciarEdicionCita = () => {
+    if (!citaDetalle) return;
+    setEditForm({
+      diagnostico: citaDetalle.diagnostico || '',
+      tratamiento: citaDetalle.tratamiento || '',
+      observaciones: citaDetalle.observaciones || '',
+      recomendaciones: citaDetalle.recomendaciones || '',
+    });
+    setEditandoCita(true);
+  };
+
+  const cancelarEdicionCita = () => {
+    setEditandoCita(false);
+  };
+
+  const guardarCitaEditada = async () => {
+    if (!citaDetalle) return;
+    setGuardandoCita(true);
+    try {
+      const { error } = await supabase
+        .from('citas')
+        .update({
+          diagnostico: editForm.diagnostico,
+          tratamiento: editForm.tratamiento,
+          observaciones: editForm.observaciones,
+          recomendaciones: editForm.recomendaciones,
+        })
+        .eq('id', citaDetalle.id);
+
+      if (error) throw error;
+
+      // Actualizar localmente el citaDetalle
+      setCitaDetalle(prev => prev ? {
+        ...prev,
+        diagnostico: editForm.diagnostico,
+        tratamiento: editForm.tratamiento,
+        observaciones: editForm.observaciones,
+        recomendaciones: editForm.recomendaciones,
+      } : null);
+
+      // Actualizar también en la lista local de citas
+      setCitas(prev => prev.map(c => c.id === citaDetalle.id ? {
+        ...c,
+        diagnostico: editForm.diagnostico,
+        tratamiento: editForm.tratamiento,
+        observaciones: editForm.observaciones,
+        recomendaciones: editForm.recomendaciones,
+      } : c));
+
+      toast.success("Consulta actualizada correctamente");
+      setEditandoCita(false);
+    } catch (error) {
+      toast.error("Error al guardar los cambios");
+    } finally {
+      setGuardandoCita(false);
     }
   };
 
@@ -190,47 +261,76 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
     doc.text("Clínica Veterinaria", 20, 20);
     doc.setFontSize(10);
     doc.setTextColor(100);
-    doc.text("Dra. Exotic - Centro de Especialidades", 20, 28);
+    doc.text("Dra. Tamara Abigail Alvarez Flores", 20, 28);
     
     // Línea separadora
     doc.setDrawColor(240, 236, 225);
     doc.setLineWidth(0.5);
     doc.line(20, 32, 190, 32);
 
-    // Datos del Paciente
-    doc.setFontSize(14);
-    doc.setTextColor(45, 51, 57);
-    doc.text("Datos del Paciente", 20, 42);
-    doc.setFontSize(10);
-    doc.setTextColor(133, 145, 160);
-    doc.text(`Nombre: ${paciente.nombre} (${paciente.especie})`, 20, 50);
-    doc.text(`Dueño: ${paciente.dueno}`, 20, 56);
-    doc.text(`Fecha: ${citaDetalle.fecha.split('-').reverse().join('/')}`, 140, 50);
+    // Datos del Paciente en una caja
+    doc.setFillColor(248, 250, 252); // bg-slate-50
+    doc.setDrawColor(226, 232, 240); // border-slate-200
+    doc.roundedRect(15, 38, 180, 26, 3, 3, "FD");
     
-    // Procedimiento/Diagnóstico
-    let startY = 70;
-    if (citaDetalle.diagnostico) {
-      doc.setFontSize(12);
-      doc.setTextColor(45, 51, 57);
-      doc.text("Procedimiento Realizado:", 20, startY);
-      doc.setFontSize(10);
-      doc.setTextColor(89, 88, 122);
-      const splitDiag = doc.splitTextToSize(citaDetalle.diagnostico, 170);
-      doc.text(splitDiag, 20, startY + 6);
-      startY += splitDiag.length * 5 + 12;
-    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(45, 51, 57);
+    doc.text("Datos del Paciente", 20, 46);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Paciente:", 20, 54);
+    doc.setTextColor(45, 51, 57);
+    doc.text(`${paciente.nombre} (${paciente.especie})`, 38, 54);
+    
+    doc.setTextColor(100, 116, 139);
+    doc.text("Dueño:", 20, 60);
+    doc.setTextColor(45, 51, 57);
+    doc.text(`${paciente.dueno || 'No especificado'}`, 35, 60);
+    
+    doc.setTextColor(100, 116, 139);
+    doc.text("Fecha:", 140, 54);
+    doc.setTextColor(45, 51, 57);
+    doc.text(`${citaDetalle.fecha.split('-').reverse().join('/')}`, 153, 54);
 
-    // Tratamiento/Receta
-    if (citaDetalle.tratamiento) {
-      doc.setFontSize(12);
-      doc.setTextColor(16, 185, 129); // Verde Emerald
-      doc.text("Tratamiento / Receta Médica:", 20, startY);
+    let startY = 72;
+
+    const drawSection = (title: string, text: string | undefined, color: number[], bgColor: number[]) => {
+      if (!text || text.trim() === '') return;
+      
+      const splitText = doc.splitTextToSize(text, 165);
+      const boxHeight = 12 + (splitText.length * 5);
+      
+      // Dibujar fondo de la caja
+      doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
+      doc.setDrawColor(bgColor[0]-15, bgColor[1]-15, bgColor[2]-15);
+      doc.roundedRect(15, startY, 180, boxHeight, 3, 3, "FD");
+      
+      // Dibujar línea de acento a la izquierda (rectángulo sin esquinas a la derecha para simular borde)
+      doc.setFillColor(color[0], color[1], color[2]);
+      doc.roundedRect(15, startY, 3, boxHeight, 3, 3, "F");
+      // Cubrir el lado derecho de la línea de acento para que sea plano hacia adentro
+      doc.rect(16.5, startY, 1.5, boxHeight, "F");
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.text(title, 22, startY + 8);
+      
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      doc.setTextColor(45, 51, 57);
-      const splitTrat = doc.splitTextToSize(citaDetalle.tratamiento, 170);
-      doc.text(splitTrat, 20, startY + 6);
-      startY += splitTrat.length * 5 + 12;
-    }
+      doc.setTextColor(60, 60, 60);
+      doc.text(splitText, 22, startY + 14);
+      
+      startY += boxHeight + 8;
+    };
+
+    drawSection("Procedimiento Realizado:", citaDetalle.diagnostico, [13, 148, 136], [240, 253, 250]); // Teal
+    drawSection("Tratamiento / Receta Médica:", citaDetalle.tratamiento, [16, 185, 129], [236, 253, 245]); // Emerald
+    drawSection("Observaciones:", citaDetalle.observaciones, [245, 158, 11], [254, 252, 232]); // Amber
+    drawSection("Recomendaciones:", citaDetalle.recomendaciones, [59, 130, 246], [239, 246, 255]); // Blue
 
     // Pie de página
     doc.setFontSize(9);
@@ -483,7 +583,7 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
     {/* MODAL DETALLE DE CITA (Vista Completa) */}
     <ModalBase 
        open={!!citaDetalle} 
-       onClose={() => setCitaDetalle(null)}
+       onClose={() => { setCitaDetalle(null); setEditandoCita(false); }}
        maxWidth="max-w-2xl"
     >
        {citaDetalle && (
@@ -505,6 +605,38 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
                 </div>
                 
                 <div className="flex flex-wrap items-center gap-3">
+                   {!editandoCita ? (
+                     <button
+                        onClick={iniciarEdicionCita}
+                        className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-600 rounded-xl font-medium text-sm hover:bg-amber-100 transition-colors shadow-sm whitespace-nowrap"
+                        title="Editar consulta"
+                     >
+                        <Pencil className="w-4 h-4" />
+                        Editar
+                     </button>
+                   ) : (
+                     <>
+                       <button
+                          onClick={guardarCitaEditada}
+                          disabled={guardandoCita}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl font-medium text-sm hover:bg-emerald-600 transition-colors shadow-sm whitespace-nowrap disabled:opacity-50"
+                          title="Guardar cambios"
+                       >
+                          {guardandoCita ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                          Guardar
+                       </button>
+                       <button
+                          onClick={cancelarEdicionCita}
+                          disabled={guardandoCita}
+                          className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-medium text-sm hover:bg-slate-200 transition-colors shadow-sm whitespace-nowrap"
+                          title="Cancelar edición"
+                       >
+                          <X className="w-4 h-4" />
+                          Cancelar
+                       </button>
+                     </>
+                   )}
+
                    <button
                       onClick={generarRecetaPDF}
                       className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl font-medium text-sm hover:bg-blue-100 transition-colors shadow-sm whitespace-nowrap"
@@ -527,24 +659,67 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
                 </div>
              </div>
 
+             {/* Procedimiento */}
              <div className="p-6 bg-teal-50/40 border border-teal-100/60 rounded-[24px]">
                 <p className="text-[11px] text-teal-600 font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><Stethoscope className="w-4 h-4"/> Procedimiento Realizado</p>
-                <p className="text-[#414066] text-[15px] leading-relaxed font-light italic whitespace-pre-line">{citaDetalle.diagnostico || 'Sin información detallada del procedimiento.'}</p>
+                {editandoCita ? (
+                  <textarea
+                    value={editForm.diagnostico}
+                    onChange={e => setEditForm(f => ({ ...f, diagnostico: e.target.value }))}
+                    rows={4}
+                    placeholder="Describe el procedimiento realizado..."
+                    className="w-full bg-white border border-teal-200 rounded-xl p-3 text-[#414066] text-[14px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-teal-300 resize-none"
+                  />
+                ) : (
+                  <p className="text-[#414066] text-[15px] leading-relaxed font-light italic whitespace-pre-line">{citaDetalle.diagnostico || 'Sin información detallada del procedimiento.'}</p>
+                )}
              </div>
 
+             {/* Receta / Tratamiento */}
              <div className="p-6 bg-emerald-50/40 border border-emerald-100/60 rounded-[24px]">
                 <p className="text-[11px] text-emerald-600 font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><FileText className="w-4 h-4"/> Tratamiento / Receta</p>
-                <p className="text-[#414066] text-[15px] leading-relaxed font-light whitespace-pre-line">{citaDetalle.tratamiento || 'No se prescribió ningún tratamiento.'}</p>
+                {editandoCita ? (
+                  <textarea
+                    value={editForm.tratamiento}
+                    onChange={e => setEditForm(f => ({ ...f, tratamiento: e.target.value }))}
+                    rows={4}
+                    placeholder="Describe el tratamiento o receta..."
+                    className="w-full bg-white border border-emerald-200 rounded-xl p-3 text-[#414066] text-[14px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-300 resize-none"
+                  />
+                ) : (
+                  <p className="text-[#414066] text-[15px] leading-relaxed font-light whitespace-pre-line">{citaDetalle.tratamiento || 'No se prescribió ningún tratamiento.'}</p>
+                )}
              </div>
 
+             {/* Observaciones y Recomendaciones */}
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-6 bg-[#fff8f3]/60 border border-orange-100/60 rounded-[24px]">
                    <p className="text-[11px] text-orange-500 font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> Observaciones</p>
-                   <p className="text-[#59587a] text-[14px] leading-relaxed font-light whitespace-pre-line">{citaDetalle.observaciones || 'No se registraron observaciones adicionales para este procedimiento.'}</p>
+                   {editandoCita ? (
+                     <textarea
+                       value={editForm.observaciones}
+                       onChange={e => setEditForm(f => ({ ...f, observaciones: e.target.value }))}
+                       rows={4}
+                       placeholder="Observaciones relevantes..."
+                       className="w-full bg-white border border-orange-200 rounded-xl p-3 text-[#59587a] text-[13px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-orange-200 resize-none"
+                     />
+                   ) : (
+                     <p className="text-[#59587a] text-[14px] leading-relaxed font-light whitespace-pre-line">{citaDetalle.observaciones || 'No se registraron observaciones adicionales para este procedimiento.'}</p>
+                   )}
                 </div>
                 <div className="p-6 bg-blue-50/40 border border-blue-100/60 rounded-[24px]">
                    <p className="text-[11px] text-blue-500 font-bold uppercase tracking-widest mb-3 flex items-center gap-2"><Info className="w-4 h-4"/> Recomendaciones</p>
-                   <p className="text-[#59587a] text-[14px] leading-relaxed font-light whitespace-pre-line">{citaDetalle.recomendaciones || 'El paciente no requiere recomendaciones específicas por el momento.'}</p>
+                   {editandoCita ? (
+                     <textarea
+                       value={editForm.recomendaciones}
+                       onChange={e => setEditForm(f => ({ ...f, recomendaciones: e.target.value }))}
+                       rows={4}
+                       placeholder="Recomendaciones para el dueño..."
+                       className="w-full bg-white border border-blue-200 rounded-xl p-3 text-[#59587a] text-[13px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-200 resize-none"
+                     />
+                   ) : (
+                     <p className="text-[#59587a] text-[14px] leading-relaxed font-light whitespace-pre-line">{citaDetalle.recomendaciones || 'El paciente no requiere recomendaciones específicas por el momento.'}</p>
+                   )}
                 </div>
              </div>
           </div>

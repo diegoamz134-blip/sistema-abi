@@ -39,13 +39,13 @@ export default function ModalBase({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className={`bg-white/95 backdrop-blur-2xl rounded-[2rem] p-8 md:p-10 w-full ${maxWidth} shadow-[0_20px_80px_${shadowColor}] ${borderColor} border relative my-8 overflow-hidden ${height || ''}`}
+            className={`bg-white/95 backdrop-blur-2xl rounded-[1.5rem] md:rounded-[2rem] p-6 md:p-10 w-full ${maxWidth} shadow-[0_20px_80px_${shadowColor}] ${borderColor} border relative my-4 md:my-8 overflow-y-auto max-h-[calc(100vh-2rem)] ${height || ''}`}
             style={{ boxShadow: `0 20px 80px ${shadowColor}` }}
           >
             {/* Botón Cerrar */}
             <button
               onClick={onClose}
-              className="absolute top-6 right-6 w-10 h-10 rounded-full flex items-center justify-center bg-slate-50 hover:bg-rose-50 text-[#a0a0b2] hover:text-rose-500 transition-colors z-[350]"
+              className="absolute top-4 right-4 md:top-6 md:right-6 w-10 h-10 rounded-full flex items-center justify-center bg-slate-50 hover:bg-rose-50 text-[#a0a0b2] hover:text-rose-500 transition-colors z-[350]"
             >
               <X className="w-5 h-5" strokeWidth={2} />
             </button>

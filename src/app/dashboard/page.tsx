@@ -5,7 +5,8 @@ import { Calendar, User, Clock, CheckCircle2, Plus, Check, Pencil, Trash2, Star,
 import { useState, useMemo } from "react";
 import useSWR, { mutate } from "swr";
 import { fetcher } from "@/lib/fetchers";
-import { insforge } from "@/lib/insforge";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 import StatCard from "@/components/StatCard";
 import Skeleton from "@/components/Skeleton";
 import EmptyState from "@/components/EmptyState";
@@ -96,19 +97,27 @@ export default function Dashboard() {
     e.preventDefault();
     if(!nuevoTexto.trim()) return;
     setCreando(true);
-    const nuevo = { texto: nuevoTexto.trim(), completado: false };
-    const { error } = await insforge.database.from("recordatorios").insert([nuevo]);
-    if(!error) {
-       mutate(RECORDATORIOS_KEY);
+    const nuevo = { 
+      texto: nuevoTexto.trim(), 
+      completado: false,
+      fecha: new Date().toISOString().split('T')[0]
+    };
+    const { error } = await supabase.from("recordatorios").insert([nuevo]);
+    if(error) {
+       console.error("Error al guardar tarea:", error);
+       toast.error("Error al guardar tarea");
+    } else {
+       await mutate(RECORDATORIOS_KEY);
        setNuevoTexto("");
        setMostrandoInput(false);
+       toast.success("Tarea guardada");
     }
     setCreando(false);
   };
 
   const completarRecordatorio = async (id: string, actual: boolean) => {
-    await insforge.database.from("recordatorios").update({ completado: !actual }).eq("id", id);
-    mutate(RECORDATORIOS_KEY);
+    await supabase.from("recordatorios").update({ completado: !actual }).eq("id", id);
+    await mutate(RECORDATORIOS_KEY);
   };
 
   const iniciarEdicionRecordatorio = (r: Recordatorio) => {
@@ -120,13 +129,13 @@ export default function Dashboard() {
     if(e && 'preventDefault' in e) e.preventDefault();
     if(!textoEditado.trim()) { setEditandoRecordatorioId(null); return; }
     setEditandoRecordatorioId(null);
-    await insforge.database.from("recordatorios").update({ texto: textoEditado.trim() }).eq("id", id);
-    mutate(RECORDATORIOS_KEY);
+    await supabase.from("recordatorios").update({ texto: textoEditado.trim() }).eq("id", id);
+    await mutate(RECORDATORIOS_KEY);
   };
 
   const eliminarRecordatorio = async (id: string) => {
-    await insforge.database.from("recordatorios").delete().eq("id", id);
-    mutate(RECORDATORIOS_KEY);
+    await supabase.from("recordatorios").delete().eq("id", id);
+    await mutate(RECORDATORIOS_KEY);
   };
 
   return (

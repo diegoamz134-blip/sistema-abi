@@ -1,13 +1,16 @@
-import { createClient } from '@insforge/sdk'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
-export function createInsForgeServerClient(accessToken?: string) {
-  return createClient({
-    baseUrl: process.env.NEXT_PUBLIC_INSFORGE_URL!,
-    anonKey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!,
-    isServerMode: true,
-    edgeFunctionToken: accessToken
-  })
+export function createSupabaseServerClient(accessToken?: string) {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {}
+      }
+    }
+  )
 }
 
 const accessCookie = 'insforge_access_token'

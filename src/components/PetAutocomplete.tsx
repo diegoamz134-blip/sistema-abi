@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PawPrint } from "lucide-react";
-import { insforge } from "@/lib/insforge";
+import { supabase } from "@/lib/supabase";
 import type { Paciente } from "@/types";
 
 interface PetAutocompleteProps {
@@ -29,7 +29,7 @@ export default function PetAutocomplete({
       setMostrar(false);
       return;
     }
-    const { data } = await insforge.database
+    const { data } = await supabase
       .from("pacientes")
       .select("id, nombre, dueno, especie, telefono, direccion")
       .ilike("nombre", `%${val}%`)

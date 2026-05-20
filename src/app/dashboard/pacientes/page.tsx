@@ -7,7 +7,7 @@ import {
   Phone, User as UserIcon, Info, ChevronRight, 
   Stethoscope, Activity, Dna, Apple, Home, CheckCircle2, Clock, FileText, PawPrint, SearchX, AlertTriangle, Camera
 } from "lucide-react";
-import { insforge } from "@/lib/insforge";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import type { Paciente, Cita } from "@/types";
 import ModalBase from "@/components/ModalBase";
@@ -61,8 +61,8 @@ export default function PacientesPage() {
   const [fotoUrl, setFotoUrl] = useState("");
   const [subiendoFoto, setSubiendoFoto] = useState(false);
 
-  // Fecha de nacimiento y peso
-  const [fechaNacimiento, setFechaNacimiento] = useState("");
+  // Edad y peso
+  const [edad, setEdad] = useState<string>("");
   const [peso, setPeso] = useState<number | "">("");
 
   const [enviando, setEnviando] = useState(false);
@@ -74,7 +74,7 @@ export default function PacientesPage() {
 
   async function cargarPacientes() {
     setCargando(true);
-    let query = insforge.database.from("pacientes").select('*', { count: 'exact' });
+    let query = supabase.from("pacientes").select('*', { count: 'exact' });
     
     if (busqueda) {
       query = query.or(`nombre.ilike.%${busqueda}%,dueno.ilike.%${busqueda}%,numero_historial.ilike.%${busqueda}%`);
@@ -128,9 +128,10 @@ export default function PacientesPage() {
     try {
       const compressed = await comprimirImagen(file);
       const fileName = `mascota_${Date.now()}_${compressed.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
-      const { data, error } = await insforge.storage.from('historial').upload(fileName, compressed);
+      const { data, error } = await supabase.storage.from('historial').upload(fileName, compressed);
       if (error) throw error;
-      const publicUrl = insforge.storage.from('historial').getPublicUrl(fileName) as string;
+      const { data: publicData } = supabase.storage.from('historial').getPublicUrl(fileName);
+      const publicUrl = publicData.publicUrl;
       setFotoUrl(publicUrl);
     } catch (err) {
       console.error('Error subiendo foto de mascota:', err);
@@ -142,7 +143,7 @@ export default function PacientesPage() {
   const cargarHistorial = async (p: Paciente) => {
     setVerHistorialPaciente(p);
     setCargandoHistorial(true);
-    const { data, error } = await insforge.database
+    const { data, error } = await supabase
       .from("citas")
       .select('*')
       .eq("mascota", p.nombre)
@@ -206,7 +207,7 @@ export default function PacientesPage() {
       dieta,
       habitat,
       ...(fotoUrl ? { foto_url: fotoUrl } : {}),
-      ...(fechaNacimiento ? { fecha_nacimiento: fechaNacimiento } : {}),
+      ...(edad ? { fecha_nacimiento: calcularFechaDesdeEdad(edad) } : {}),
       ...(peso !== "" ? { peso: Number(peso) } : {}),
     };
 
@@ -214,11 +215,11 @@ export default function PacientesPage() {
 
     try {
       const { error } = pacienteEditando
-        ? await insforge.database.from("pacientes").update(datosPaciente).eq("id", editandoId)
-        : await insforge.database.from("pacientes").insert([datosPaciente]);
+        ? await supabase.from("pacientes").update(datosPaciente).eq("id", editandoId)
+        : await supabase.from("pacientes").insert([datosPaciente]);
       
       if (!error) {
-        mutate(PACIENTES_ALL_KEY);
+        cargarPacientes();
         toast.success(pacienteEditando ? "Paciente actualizado" : "Paciente registrado");
         limpiarFormulario();
         setMostrarModalForm(false); 
@@ -235,9 +236,9 @@ export default function PacientesPage() {
   const eliminarPaciente = async () => {
     if (!pacienteAEliminar) return;
     try {
-      const { error } = await insforge.database.from("pacientes").delete().eq("id", pacienteAEliminar.id);
+      const { error } = await supabase.from("pacientes").delete().eq("id", pacienteAEliminar.id);
       if (!error) {
-        mutate(PACIENTES_ALL_KEY);
+        cargarPacientes();
         toast.success("Paciente eliminado");
         setPacienteAEliminar(null); // Clear the patient to be deleted
       } else {
@@ -262,7 +263,12 @@ export default function PacientesPage() {
     setDieta(p.dieta || "");
     setHabitat(p.habitat || "");
     setFotoUrl(p.foto_url || "");
-    setFechaNacimiento(p.fecha_nacimiento || "");
+    
+    if (p.fecha_nacimiento) {
+      setEdad(calcularEdadString(p.fecha_nacimiento));
+    } else {
+      setEdad("");
+    }
     setPeso(p.peso ?? "");
     setMostrarModalForm(true);
   };
@@ -272,7 +278,31 @@ export default function PacientesPage() {
     setNombre(""); setEspecie("Perro"); setRaza(""); setDueno(""); setTelefono(""); setDireccion(""); setHistoria("");
     setNombreCientifico(""); setTiempoTenencia(""); setDieta(""); setHabitat("");
     setFotoUrl("");
-    setFechaNacimiento(""); setPeso("");
+    setEdad(""); setPeso("");
+  };
+
+  const calcularFechaDesdeEdad = (edadStr: string) => {
+    const hoy = new Date();
+    if (edadStr.includes('mes')) {
+      const meses = parseInt(edadStr);
+      hoy.setMonth(hoy.getMonth() - meses);
+    } else if (edadStr.includes('año')) {
+      const anios = parseInt(edadStr);
+      hoy.setFullYear(hoy.getFullYear() - anios);
+    }
+    return hoy.toISOString().split('T')[0];
+  };
+
+  const calcularEdadString = (fechaNacimiento: string) => {
+    const hoy = new Date();
+    const nac = new Date(fechaNacimiento);
+    let meses = (hoy.getFullYear() - nac.getFullYear()) * 12;
+    meses -= nac.getMonth();
+    meses += hoy.getMonth();
+    if (meses <= 0) return '1 mes';
+    if (meses <= 12) return meses === 1 ? '1 mes' : `${meses} meses`;
+    const anios = Math.floor(meses / 12);
+    return anios === 1 ? '1 año' : `${anios} años`;
   };
 
   const totalPaginas = Math.ceil(totalPacientes / POR_PAGINA);
@@ -328,7 +358,7 @@ export default function PacientesPage() {
                         <p className="text-[12px] text-[#a0a0b2] truncate">Hist: {p.numero_historial}</p>
                         {p.fecha_nacimiento && (
                           <span className="text-[11px] bg-[#f4f7f0] text-[#8DAA68] px-2 py-0.5 rounded-full font-medium">
-                            {Math.floor((Date.now() - new Date(p.fecha_nacimiento).getTime()) / (1000*60*60*24*365))} años
+                            {calcularEdadString(p.fecha_nacimiento)}
                           </span>
                         )}
                         {p.peso && (
@@ -395,7 +425,7 @@ export default function PacientesPage() {
             <div className="space-y-4">
                <div>
                   <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Nombre de Mascota</label>
-                  <input type="text" required value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none transition-all" placeholder="Ej: Toby" />
+                  <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none transition-all" placeholder="Ej: Toby" />
                </div>
                 <div>
                    <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Especie</label>
@@ -417,14 +447,14 @@ export default function PacientesPage() {
             <div className="space-y-4">
                <div>
                   <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Nombre del Dueño</label>
-                  <input type="text" required value={dueno} onChange={(e) => setDueno(e.target.value)} className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none" placeholder="Nombre y Apellido" />
+                  <input type="text" value={dueno} onChange={(e) => setDueno(e.target.value)} className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none" placeholder="Nombre y Apellido" />
                </div>
                <div>
                   <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Teléfono de Contacto</label>
-                  <input type="tel" required value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none" placeholder="999 999 999" />
+                  <input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none" placeholder="999 999 999" />
                </div>
                <div>
-                  <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">N° Historia (Opcional)</label>
+                  <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">N° Historia</label>
                   <input type="text" value={historia} onChange={(e) => setHistoria(e.target.value)} className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none" placeholder="Generado automático si vacío" />
                </div>
             </div>
@@ -436,16 +466,25 @@ export default function PacientesPage() {
                </div>
             </div>
 
-            {/* Fecha Nacimiento + Peso */}
             <div className="col-span-1 md:col-span-2 grid grid-cols-2 gap-4">
               <div>
-                <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Fecha de Nacimiento</label>
-                <input
-                  type="date"
-                  value={fechaNacimiento}
-                  onChange={(e) => setFechaNacimiento(e.target.value)}
-                  className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none"
-                />
+                <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Edad</label>
+                <div className="relative group/sel">
+                  <select
+                    value={edad}
+                    onChange={(e) => setEdad(e.target.value)}
+                    className="w-full h-11 bg-slate-50 rounded-xl px-4 text-[#8DAA68] text-sm focus:ring-1 focus:ring-[#8DAA68]/50 focus:outline-none cursor-pointer appearance-none"
+                  >
+                    <option value="">Seleccione...</option>
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={`m-${i+1}`} value={`${i+1} mes${i===0?'':'es'}`}>{i+1} mes{i===0?'':'es'}</option>
+                    ))}
+                    {Array.from({ length: 15 }, (_, i) => (
+                      <option key={`y-${i+1}`} value={`${i+1} año${i===0?'':'s'}`}>{i+1} año{i===0?'':'s'}</option>
+                    ))}
+                  </select>
+                  <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8DAA68]/40 pointer-events-none rotate-90" />
+                </div>
               </div>
               <div>
                 <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1">Peso Actual (kg)</label>
@@ -464,7 +503,7 @@ export default function PacientesPage() {
             {/* Foto de la Mascota */}
             <div className="col-span-1 md:col-span-2">
               <label className="text-[11px] uppercase tracking-wider text-[#a0a0b2] font-bold mb-2 block ml-1 flex items-center gap-1.5">
-                <Camera className="w-3.5 h-3.5" /> Foto de la Mascota (Opcional)
+                <Camera className="w-3.5 h-3.5" /> Foto de la Mascota
               </label>
               <div className="flex items-center gap-4">
                 {/* Preview */}
