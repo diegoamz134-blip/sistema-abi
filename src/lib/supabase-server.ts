@@ -25,7 +25,7 @@ const authCookieOptions = {
 
 export async function setAuthCookies(accessToken: string, refreshToken: string) {
   const cookieStore = await cookies()
-  cookieStore.set(accessCookie, accessToken, { ...authCookieOptions, maxAge: 60 * 15 })
+  cookieStore.set(accessCookie, accessToken, { ...authCookieOptions, maxAge: 60 * 60 * 24 })
   cookieStore.set(refreshCookie, refreshToken, { ...authCookieOptions, maxAge: 60 * 60 * 24 * 7 })
 }
 
