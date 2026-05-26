@@ -73,6 +73,10 @@ export default function CalendarioPage() {
   const guardarCita = async (e: React.FormEvent) => {
     e.preventDefault();
     setEnviando(true);
+
+    // Abrimos la pestaña inmediatamente en el evento síncrono del click para evitar que iOS la bloquee
+    const waWindow = window.open("", "_blank");
+
     const stringHora = `${horaSeleccionada}:${minutoSeleccionado} ${amPm}`;
     const datosCita = { mascota, dueno, telefono, direccion, fecha: fechaSeleccionada, hora: stringHora, tipo, notas, estado: 'Pendiente', activa: true };
     
@@ -80,13 +84,19 @@ export default function CalendarioPage() {
       const { error } = await supabase.from("citas").insert([datosCita]);
       if (error) {
         toast.error("Error al agendar");
+        if (waWindow) waWindow.close();
       } else {
         toast.success("Cita agendada correctamente");
         
         // WhatsApp Redirect
         const mensaje = `*¡Hola! Dra. Exotic le saluda!* 🐾✨%0A%0AConfirmamos la cita para *${mascota}*:%0A📅 *Fecha:* ${fechaSeleccionada.split('-').reverse().join('/')}%0A⏰ *Hora:* ${stringHora}%0A🏥 *Motivo:* ${tipo}%0A📍 *Dirección:* ${direccion}%0A%0A¡Le esperamos con mucho cariño! 🐾🦎`;
         const waUrl = `https://wa.me/${telefono.replace(/\D/g, '')}?text=${mensaje}`;
-        window.open(waUrl, '_blank');
+        
+        if (waWindow) {
+          waWindow.location.href = waUrl;
+        } else {
+          window.open(waUrl, '_blank');
+        }
         
         setMostrarModalForm(false);
         const { data } = await supabase.from("citas").select('*').order('hora', { ascending: true });
@@ -94,6 +104,7 @@ export default function CalendarioPage() {
       }
     } catch (e) {
       toast.error("Error de conexión");
+      if (waWindow) waWindow.close();
     } finally {
       setEnviando(false);
     }

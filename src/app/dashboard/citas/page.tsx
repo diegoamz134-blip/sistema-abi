@@ -72,6 +72,10 @@ export default function CitasPage() {
   const agendarOActualizarCita = async (e: React.FormEvent) => {
     e.preventDefault();
     setEnviando(true);
+
+    // Abrimos la pestaña inmediatamente en el evento síncrono del click para evitar que iOS la bloquee
+    const waWindow = window.open("", "_blank");
+
     const stringHora = `${horaSeleccionada}:${minutoSeleccionado} ${amPm}`;
     const datosCita = { mascota, dueno, telefono, direccion, fecha, hora: stringHora, tipo, notas, estado: estadoCita, activa: true };
 
@@ -87,19 +91,26 @@ export default function CitasPage() {
 
       if (error) {
         toast.error(editandoId ? "Error al actualizar la cita" : "Error al agendar");
+        if (waWindow) waWindow.close();
       } else {
         toast.success(editandoId ? "Cita actualizada elegantemente." : "Cita agendada correctamente");
         
         // WhatsApp Redirect
         const mensaje = `*¡Hola! Dra. Exotic le saluda!* 🐾✨%0A%0AConfirmamos la cita para *${mascota}*:%0A📅 *Fecha:* ${fecha.split('-').reverse().join('/')}%0A⏰ *Hora:* ${stringHora}%0A🏥 *Motivo:* ${tipo}%0A📍 *Dirección:* ${direccion}%0A%0A¡Le esperamos con mucho cariño! 🐾🦎`;
         const waUrl = `https://wa.me/${telefono.replace(/\D/g, '')}?text=${mensaje}`;
-        window.open(waUrl, '_blank');
+        
+        if (waWindow) {
+          waWindow.location.href = waUrl;
+        } else {
+          window.open(waUrl, '_blank');
+        }
       }
       await mutate();
       cancelarEdicion();
       setMostrarModalForm(false);
     } catch (e) {
       toast.error("Error de conexión");
+      if (waWindow) waWindow.close();
     } finally {
       setEnviando(false);
     }
