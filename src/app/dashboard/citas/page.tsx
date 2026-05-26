@@ -76,22 +76,24 @@ export default function CitasPage() {
     const datosCita = { mascota, dueno, telefono, direccion, fecha, hora: stringHora, tipo, notas, estado: estadoCita, activa: true };
 
     try {
+      let error = null;
       if (editandoId) {
-        await supabase.from("citas").update(datosCita).eq("id", editandoId);
-        toast.success("Cita actualizada elegantemente.");
+        const res = await supabase.from("citas").update(datosCita).eq("id", editandoId);
+        error = res.error;
       } else {
-        const { error } = await supabase.from("citas").insert([datosCita]);
-      
-        if (error) {
-          toast.error("Error al agendar");
-        } else {
-          toast.success("Cita agendada correctamente");
-          
-          // WhatsApp Redirect
-          const mensaje = `*¡Hola! Dra. Exotic le saluda!* 🐾✨%0A%0AConfirmamos la cita para *${mascota}*:%0A📅 *Fecha:* ${fecha.split('-').reverse().join('/')}%0A⏰ *Hora:* ${stringHora}%0A🏥 *Motivo:* ${tipo}%0A📍 *Dirección:* ${direccion}%0A%0A¡Le esperamos con mucho cariño! 🐾🦎`;
-          const waUrl = `https://wa.me/${telefono.replace(/\D/g, '')}?text=${mensaje}`;
-          window.open(waUrl, '_blank');
-        }
+        const res = await supabase.from("citas").insert([datosCita]);
+        error = res.error;
+      }
+
+      if (error) {
+        toast.error(editandoId ? "Error al actualizar la cita" : "Error al agendar");
+      } else {
+        toast.success(editandoId ? "Cita actualizada elegantemente." : "Cita agendada correctamente");
+        
+        // WhatsApp Redirect
+        const mensaje = `*¡Hola! Dra. Exotic le saluda!* 🐾✨%0A%0AConfirmamos la cita para *${mascota}*:%0A📅 *Fecha:* ${fecha.split('-').reverse().join('/')}%0A⏰ *Hora:* ${stringHora}%0A🏥 *Motivo:* ${tipo}%0A📍 *Dirección:* ${direccion}%0A%0A¡Le esperamos con mucho cariño! 🐾🦎`;
+        const waUrl = `https://wa.me/${telefono.replace(/\D/g, '')}?text=${mensaje}`;
+        window.open(waUrl, '_blank');
       }
       await mutate();
       cancelarEdicion();
