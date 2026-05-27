@@ -256,7 +256,7 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
     window.open(url, '_blank');
   };
 
-  const generarRecetaPDF = async () => {
+  const generarRecetaPDF = async (incluirTratamiento: boolean = true) => {
     if (!citaDetalle || !paciente) return;
     
     // @ts-ignore
@@ -318,47 +318,44 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
 
     let startY = 72;
 
-    const drawSection = (title: string, text: string | undefined, color: number[], bgColor: number[]) => {
+    const drawSection = (title: string, text: string | undefined) => {
       if (!text || text.trim() === '') return;
       
       const splitText = doc.splitTextToSize(text, 165);
       const boxHeight = 12 + (splitText.length * 5);
       
       // Dibujar fondo de la caja
-      doc.setFillColor(bgColor[0], bgColor[1], bgColor[2]);
-      doc.setDrawColor(bgColor[0]-15, bgColor[1]-15, bgColor[2]-15);
+      doc.setFillColor(248, 250, 252); // bg-slate-50
+      doc.setDrawColor(226, 232, 240); // border-slate-200
       doc.roundedRect(15, startY, 180, boxHeight, 3, 3, "FD");
-      
-      // Dibujar línea de acento a la izquierda (rectángulo sin esquinas a la derecha para simular borde)
-      doc.setFillColor(color[0], color[1], color[2]);
-      doc.roundedRect(15, startY, 3, boxHeight, 3, 3, "F");
-      // Cubrir el lado derecho de la línea de acento para que sea plano hacia adentro
-      doc.rect(16.5, startY, 1.5, boxHeight, "F");
       
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.text(title, 22, startY + 8);
+      doc.setTextColor(45, 51, 57);
+      doc.text(title, 20, startY + 8);
       
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.setTextColor(60, 60, 60);
-      doc.text(splitText, 22, startY + 14);
+      doc.text(splitText, 20, startY + 14);
       
       startY += boxHeight + 8;
     };
 
-    drawSection("Procedimiento Realizado:", citaDetalle.diagnostico, [13, 148, 136], [240, 253, 250]); // Teal
-    drawSection("Tratamiento / Receta Médica:", citaDetalle.tratamiento, [16, 185, 129], [236, 253, 245]); // Emerald
-    drawSection("Observaciones:", citaDetalle.observaciones, [245, 158, 11], [254, 252, 232]); // Amber
-    drawSection("Recomendaciones:", citaDetalle.recomendaciones, [59, 130, 246], [239, 246, 255]); // Blue
+    drawSection("Procedimiento Realizado:", citaDetalle.diagnostico);
+    if (incluirTratamiento) {
+      drawSection("Tratamiento / Receta Médica:", citaDetalle.tratamiento);
+    }
+    drawSection("Observaciones:", citaDetalle.observaciones);
+    drawSection("Recomendaciones:", citaDetalle.recomendaciones);
 
     // Pie de página
     doc.setFontSize(9);
     doc.setTextColor(160);
     doc.text("Documento generado electrónicamente. Válido con firma y sello del médico veterinario.", 20, 280);
 
-    doc.save(`Receta_${paciente.nombre}_${citaDetalle.fecha}.pdf`);
+    const prefijo = incluirTratamiento ? 'Receta' : 'Informe';
+    doc.save(`${prefijo}_${paciente.nombre}_${citaDetalle.fecha}.pdf`);
   };
 
   if (!paciente) return null;
@@ -659,12 +656,21 @@ export default function MedicalRecordModal({ paciente, onClose }: Props) {
                    )}
 
                    <button
-                      onClick={generarRecetaPDF}
+                      onClick={() => generarRecetaPDF(true)}
                       className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl font-medium text-sm hover:bg-blue-100 transition-colors shadow-sm whitespace-nowrap"
-                      title="Descargar Receta en PDF"
+                      title="Descargar PDF con Tratamiento"
+                   >
+                      <FileText className="w-4 h-4" />
+                      Receta
+                   </button>
+                   
+                   <button
+                      onClick={() => generarRecetaPDF(false)}
+                      className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-medium text-sm hover:bg-slate-200 transition-colors shadow-sm whitespace-nowrap"
+                      title="Descargar PDF sin Tratamiento"
                    >
                       <Download className="w-4 h-4" />
-                      PDF
+                      Informe
                    </button>
                    
                    <button
